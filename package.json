@@ -3,13 +3,24 @@
   "version": "1.0.0",
   "private": true,
   "description": "API de adquirencia G8 para consulta segura de estabelecimentos comerciais aprovados.",
-  "type": "commonjs",
-  "main": "server.js",
+  "type": "module",
   "scripts": {
-    "start": "node server.js",
-    "test": "node --test"
+    "dev": "wrangler dev --port ${PORT:-3000}",
+    "deploy": "wrangler deploy --minify",
+    "cf-typegen": "wrangler types --env-interface CloudflareBindings",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=20"
+  },
+  "dependencies": {
+    "hono": "^4.12.25"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20260730.1",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.8",
+    "wrangler": "^4.4.0"
   }
 }
