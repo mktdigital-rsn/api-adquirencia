@@ -142,7 +142,7 @@ O único endpoint público é:
 
 Esse serve só para checagem de status da aplicação.
 
-## Exemplo de produção
+## Configuração de ambiente
 
 Segue um exemplo de arquivo `.env` para produção.
 
@@ -151,7 +151,7 @@ PORT=3000
 AGENTS_API_BASE_URL=https://agentes-api.bancog8dev.workers.dev
 AGENTS_API_TIMEOUT_MS=10000
 AGENTS_API_MAX_PAGES=20
-API_KEY_HASHES=coloque_aqui_o_sha256_da_chave
+API_KEY_HASHES=7a6a80f60613f5df771a25de3fa1a02828786903af529bddb35941c7b470b583
 ```
 
 Fluxo recomendado:
@@ -160,6 +160,8 @@ Fluxo recomendado:
 2. entregue a chave ao cliente por canal seguro
 3. salve apenas o hash em `API_KEY_HASHES`
 4. configure a URL pública da sua API
+
+Para desenvolvimento local, copie `.dev.vars.example` para `.dev.vars`. O Wrangler carrega esse arquivo como bindings do Worker. Em produção, configure as mesmas variáveis no Cloudflare; `API_KEY_HASHES` deve ser cadastrado como secret (`wrangler secret put API_KEY_HASHES`).
 
 ## Variáveis de ambiente
 
@@ -241,9 +243,16 @@ A API devolve os campos principais do `establishments` em formato direto, por ex
 
 ```bash
 npm test
-npm start
+npm run typecheck
+npm run dev
 ```
 
-## Observação sobre deploy
+O Worker usa `PORT` somente para o servidor local. Por padrão, `npm run dev` inicia na porta `3000`.
 
-O projeto já está pronto para um deploy simples em Node.js. Quando você decidir o destino final da URL, eu posso te ajudar a montar a GitHub Action certa para esse provedor sem refazer a API.
+## Deploy
+
+```bash
+npm run deploy
+```
+
+Antes do primeiro deploy, configure as variáveis no Cloudflare. O endpoint `API_KEY_HASHES` é obrigatório e deve ser definido como secret.
