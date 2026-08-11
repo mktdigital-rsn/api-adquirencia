@@ -27,7 +27,9 @@ A API de adquirência do G8 fornece endpoints para:
 - autentica por chave de acesso via header
 - consulta a API de agentes sem banco de dados local
 - retorna apenas E.C. aprovados para a adquirência
+- envia webhooks quando identifica novos E.C. aprovados
 - expõe `GET /health`, `GET /api/establishments` e `GET /api/establishments/:id`
+- expõe `GET /docs` e `GET /openapi.json` com Swagger
 
 ## Autenticação
 
@@ -72,11 +74,11 @@ Se você for repassar para o cliente, pode usar este texto:
 Credenciais de acesso da API de Adquirência G8
 
 Endpoint base:
-https://sua-api.com
+https://api-adquirencia.bancog8.com.br
 
 Credencial:
 - Header obrigatório: x-api-key
-- Valor: SUA_CHAVE_DE_ACESSO
+- Valor: g8_adquirencia_671ba4b7a4062bf1252155a7d6c8ea56325e0356648433e1ad263ec986cba98d
 
 Endpoints disponíveis:
 - GET /health
@@ -84,8 +86,8 @@ Endpoints disponíveis:
 - GET /api/establishments/:id
 
 Exemplo de chamada:
-curl -X GET "https://sua-api.com/api/establishments" \
-  -H "x-api-key: SUA_CHAVE_DE_ACESSO"
+curl -X GET "https://api-adquirencia.bancog8.com.br/api/establishments" \
+  -H "x-api-key: g8_adquirencia_671ba4b7a4062bf1252155a7d6c8ea56325e0356648433e1ad263ec986cba98d"
 
 Observações:
 - Sem a chave correta, os endpoints de negócio retornam 401 ou 403.
@@ -100,14 +102,14 @@ O cliente precisa enviar a chave em todas as requisições.
 Exemplo com `curl`:
 
 ```bash
-curl -X GET "https://sua-api.com/api/establishments" \
+curl -X GET "https://api-adquirencia.bancog8.com.br/api/establishments" \
   -H "x-api-key: g8_adquirencia_671ba4b7a4062bf1252155a7d6c8ea56325e0356648433e1ad263ec986cba98d"
 ```
 
 Exemplo para um E.C. específico:
 
 ```bash
-curl -X GET "https://sua-api.com/api/establishments/ec_123" \
+curl -X GET "https://api-adquirencia.bancog8.com.br/api/establishments/ec_123" \
   -H "x-api-key: g8_adquirencia_671ba4b7a4062bf1252155a7d6c8ea56325e0356648433e1ad263ec986cba98d"
 ```
 
@@ -142,6 +144,95 @@ O único endpoint público é:
 
 Esse serve só para checagem de status da aplicação.
 
+## Webhooks
+
+Além das consultas, a API pode avisar automaticamente quando um novo E.C. for aprovado.
+
+### Fluxo
+
+1. o cliente cadastra a URL do webhook
+2. a API gera um `webhookToken` em formato UUID
+3. quando um novo E.C. aprovado é identificado, a adquirência envia `POST` para a URL cadastrada
+4. o cliente valida o token e a assinatura da requisição
+
+### O que o cliente recebe
+
+Cada webhook enviado leva estes headers:
+
+- `Authorization: Bearer <webhookToken>`
+- `X-G8-Webhook-Id`
+- `X-G8-Webhook-Event`
+- `X-G8-Webhook-Subscription-Id`
+- `X-G8-Webhook-Signature`
+- `X-G8-Webhook-Timestamp`
+
+O body traz o evento completo do estabelecimento aprovado.
+
+### Criar uma assinatura de webhook
+
+```bash
+curl -X POST "https://api-adquirencia.bancog8.com.br/api/webhooks/subscriptions" \
+  -H "x-api-key: g8_adquirencia_671ba4b7a4062bf1252155a7d6c8ea56325e0356648433e1ad263ec986cba98d" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "callbackUrl": "https://cliente.com/webhooks/g8",
+    "name": "Cliente Exemplo",
+    "description": "Webhook de aprovacao de E.C."
+  }'
+```
+
+### Resposta da criação
+
+Na criação, a API devolve o `webhookToken` apenas uma vez.
+
+```json
+{
+  "data": {
+    "id": "uuid-da-assinatura",
+    "callbackUrl": "https://cliente.com/webhooks/g8",
+    "name": "Cliente Exemplo",
+    "description": "Webhook de aprovacao de E.C.",
+    "enabled": true,
+    "webhookToken": "uuid-do-cliente",
+    "webhookTokenType": "Bearer"
+  }
+}
+```
+
+### Como o cliente valida
+
+O cliente deve verificar:
+
+- se `Authorization` contém o UUID recebido
+- se `X-G8-Webhook-Signature` confere com o body recebido
+
+### Exemplo de payload enviado ao cliente
+
+```json
+{
+  "id": "uuid-da-entrega",
+  "event": "establishment.approved",
+  "source": "poller",
+  "timestamp": "2026-08-11T12:00:00.000Z",
+  "subscriptionId": "uuid-da-assinatura",
+  "establishment": {
+    "id": "ec_123",
+    "approved": true,
+    "status": "approved"
+  }
+}
+```
+
+### Auditoria
+
+Também é possível consultar:
+
+- `GET /api/webhooks/subscriptions`
+- `GET /api/webhooks/subscriptions/:id`
+- `DELETE /api/webhooks/subscriptions/:id`
+- `GET /api/webhooks/deliveries`
+- `GET /api/webhooks/deliveries/:id`
+
 ## Exemplo de produção
 
 Segue um exemplo de arquivo `.env` para produção.
@@ -151,6 +242,11 @@ PORT=3000
 AGENTS_API_BASE_URL=https://agentes-api.bancog8dev.workers.dev
 AGENTS_API_TIMEOUT_MS=10000
 AGENTS_API_MAX_PAGES=20
+WEBHOOK_STORE_PATH=.data/webhooks.json
+WEBHOOK_POLL_INTERVAL_MS=60000
+WEBHOOK_POLL_ENABLED=true
+WEBHOOK_PUBLIC_BASE_URL=https://api-adquirencia.bancog8.com.br
+INTERNAL_WEBHOOK_SECRET=
 API_KEY_HASHES=coloque_aqui_o_sha256_da_chave
 ```
 
@@ -159,7 +255,8 @@ Fluxo recomendado:
 1. gere a chave secreta com `node scripts/generate-api-key.js`
 2. entregue a chave ao cliente por canal seguro
 3. salve apenas o hash em `API_KEY_HASHES`
-4. configure a URL pública da sua API
+4. configure a URL pública da sua API em `https://api-adquirencia.bancog8.com.br`
+5. se a API de agentes for chamar o endpoint interno, configure `INTERNAL_WEBHOOK_SECRET`
 
 ## Variáveis de ambiente
 
@@ -169,6 +266,11 @@ Crie um arquivo `.env` com base em `.env.example`.
 - `AGENTS_API_BASE_URL`: URL base da API de agentes
 - `AGENTS_API_TIMEOUT_MS`: tempo limite da chamada ao upstream
 - `AGENTS_API_MAX_PAGES`: limite de páginas ao buscar a lista completa
+- `WEBHOOK_STORE_PATH`: arquivo local que guarda assinaturas e entregas
+- `WEBHOOK_POLL_INTERVAL_MS`: intervalo de varredura para detectar novos aprovados
+- `WEBHOOK_POLL_ENABLED`: habilita ou desabilita o monitoramento automático
+- `WEBHOOK_PUBLIC_BASE_URL`: URL pública usada nos links do Swagger
+- `INTERNAL_WEBHOOK_SECRET`: segredo opcional para integrações internas com a API de agentes
 
 ## Gerar credenciais
 
@@ -192,6 +294,20 @@ Lista todos os estabelecimentos comerciais aprovados, independente do agente.
 Retorna um estabelecimento específico, desde que ele esteja aprovado.
 
 Se o estabelecimento existir mas não estiver aprovado, a API responde com `404`.
+
+## Swagger
+
+A documentação interativa está em:
+
+- `GET /docs`
+- `GET /openapi.json`
+
+O Swagger mostra:
+
+- rotas de consulta
+- rotas de webhook
+- headers de autenticação
+- modelos principais de request e response
 
 ## Formato de resposta
 
