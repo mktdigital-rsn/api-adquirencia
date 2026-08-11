@@ -258,6 +258,8 @@ Fluxo recomendado:
 4. configure a URL pública da sua API em `https://api-adquirencia.bancog8.com.br`
 5. se a API de agentes for chamar o endpoint interno, configure `INTERNAL_WEBHOOK_SECRET`
 
+Para desenvolvimento local, copie `.dev.vars.example` para `.dev.vars`. O Wrangler carrega esse arquivo como bindings do Worker. Em produção, configure as mesmas variáveis no Cloudflare; `API_KEY_HASHES` deve ser cadastrado como secret (`wrangler secret put API_KEY_HASHES`).
+
 ## Variáveis de ambiente
 
 Crie um arquivo `.env` com base em `.env.example`.
@@ -357,9 +359,16 @@ A API devolve os campos principais do `establishments` em formato direto, por ex
 
 ```bash
 npm test
-npm start
+npm run typecheck
+npm run dev
 ```
 
-## Observação sobre deploy
+O Worker usa `PORT` somente para o servidor local. Por padrão, `npm run dev` inicia na porta `3000`.
 
-O projeto já está pronto para um deploy simples em Node.js. Quando você decidir o destino final da URL, eu posso te ajudar a montar a GitHub Action certa para esse provedor sem refazer a API.
+## Deploy
+
+```bash
+npm run deploy
+```
+
+Antes do primeiro deploy, configure as variáveis no Cloudflare. O endpoint `API_KEY_HASHES` é obrigatório e deve ser definido como secret.
