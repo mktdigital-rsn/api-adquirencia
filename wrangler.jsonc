@@ -3,15 +3,20 @@
   "name": "api-adquirencia",
   "main": "src/index.ts",
   "compatibility_date": "2026-06-11",
+  "triggers": {
+    "crons": [
+      "* * * * *"
+    ]
+  },
   "vars": {
     "PORT": "3000",
     "AGENTS_API_BASE_URL": "https://agentes-api.bancog8dev.workers.dev",
     "AGENTS_API_TIMEOUT_MS": "10000",
     "AGENTS_API_MAX_PAGES": "20",
     "API_KEY_HASHES": "7a6a80f60613f5df771a25de3fa1a02828786903af529bddb35941c7b470b583",
-    "WEBHOOK_STORE_PATH": ".data/webhooks.json",
-    "WEBHOOK_POLL_INTERVAL_MS": 60000,
-    "WEBHOOK_POLL_ENABLED": true,
-    "WEBHOOK_PUBLIC_BASE_URL": "https://api-adquirencia.bancog8.com.br"
+    "WEBHOOK_POLL_ENABLED": "true",
+    "WEBHOOK_PUBLIC_BASE_URL": "https://api-adquirencia.bancog8.com.br",
+    "TURSO_DATABASE_URL": "libsql://adquirencia-api-mktdigital-rsn.aws-us-east-1.turso.io",
+    "TURSO_AUTH_TOKEN": "eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9.eyJhIjoicnciLCJpYXQiOjE3ODY1ODE2MjMsImlkIjoiMDE5ZmY4ODEtYjcwMS03MTVjLTg1M2MtZTk1MTc5OTE1ZjUyIiwia2lkIjoiMUhHN0R4anlPVmlZVUF4WkdMS0g5OFlFLXlLVllPaXFkVmEwY3ZLa3BhNCIsInJpZCI6ImZmMTU3ZWU1LTBjMzctNDJlNS1hYWVkLTVlN2IwNTVlYzBiMCJ9.NsqYhAR8e-dSfMiHL7bd2T6trzWojnSzVMLNgmsC3K3RKzIBDuPro7TDoIoiud5ae9TICQkLoTCYRhMF_EgtDQ"
   }
 }

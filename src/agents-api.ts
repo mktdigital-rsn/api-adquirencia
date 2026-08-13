@@ -65,3 +65,15 @@ export async function fetchEstablishmentById({ baseUrl, id, timeoutMs }: { baseU
   const source = payload as JsonRecord
   return source.data ?? source.item ?? source.establishment ?? source
 }
+
+export async function listApprovedEstablishments({ baseUrl, timeoutMs, maxPages }: { baseUrl: string; timeoutMs: number; maxPages: number }): Promise<unknown[]> {
+  const items = await fetchEstablishments({ baseUrl, timeoutMs, maxPages })
+  return items.filter((item) => {
+    if (!item || typeof item !== 'object') return false
+    const source = item as JsonRecord
+    const approved = source.approved === true
+      || source.isApproved === true
+      || ['approved', 'aprovado'].includes(String(source.status ?? source.approvalStatus ?? '').trim().toLowerCase())
+    return approved
+  })
+}

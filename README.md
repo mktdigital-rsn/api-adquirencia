@@ -25,7 +25,8 @@ A API de adquirência do G8 fornece endpoints para:
 ## O que esta versão faz
 
 - autentica por chave de acesso via header
-- consulta a API de agentes sem banco de dados local
+- consulta a API de agentes e persiste webhooks no Turso
+- persiste assinaturas e entregas de webhook no Turso
 - retorna apenas E.C. aprovados para a adquirência
 - envia webhooks quando identifica novos E.C. aprovados
 - expõe `GET /health`, `GET /api/establishments` e `GET /api/establishments/:id`
@@ -151,9 +152,10 @@ Além das consultas, a API pode avisar automaticamente quando um novo E.C. for a
 ### Fluxo
 
 1. o cliente cadastra a URL do webhook
-2. a API gera um `webhookToken` em formato UUID
-3. quando um novo E.C. aprovado é identificado, a adquirência envia `POST` para a URL cadastrada
-4. o cliente valida o token e a assinatura da requisição
+2. a API salva a assinatura no Turso e gera um `webhookToken` em formato UUID
+3. um cron do Cloudflare Workers verifica periodicamente a `agentes-api`
+4. quando um novo E.C. aprovado é identificado, a adquirência envia `POST` para a URL cadastrada
+5. o cliente valida o token e a assinatura da requisição
 
 ### O que o cliente recebe
 
@@ -167,6 +169,13 @@ Cada webhook enviado leva estes headers:
 - `X-G8-Webhook-Timestamp`
 
 O body traz o evento completo do estabelecimento aprovado.
+
+### Observação importante
+
+- o webhook de aprovação é disparado automaticamente pelo cron do Worker
+- a assinatura e o histórico das entregas ficam no Turso
+- `INTERNAL_WEBHOOK_SECRET` é opcional e serve só para o endpoint interno de teste
+- se `INTERNAL_WEBHOOK_SECRET` ficar vazio em produção, o webhook externo continua funcionando normalmente
 
 ### Criar uma assinatura de webhook
 
@@ -212,7 +221,7 @@ O cliente deve verificar:
 {
   "id": "uuid-da-entrega",
   "event": "establishment.approved",
-  "source": "poller",
+  "source": "cron",
   "timestamp": "2026-08-11T12:00:00.000Z",
   "subscriptionId": "uuid-da-assinatura",
   "establishment": {
@@ -242,11 +251,11 @@ PORT=3000
 AGENTS_API_BASE_URL=https://agentes-api.bancog8dev.workers.dev
 AGENTS_API_TIMEOUT_MS=10000
 AGENTS_API_MAX_PAGES=20
-WEBHOOK_STORE_PATH=.data/webhooks.json
-WEBHOOK_POLL_INTERVAL_MS=60000
 WEBHOOK_POLL_ENABLED=true
 WEBHOOK_PUBLIC_BASE_URL=https://api-adquirencia.bancog8.com.br
 INTERNAL_WEBHOOK_SECRET=
+TURSO_DATABASE_URL=libsql://adquirencia-api-mktdigital-rsn.aws-us-east-1.turso.io
+# TURSO_AUTH_TOKEN=coloque_o_token_do_turso_aqui
 API_KEY_HASHES=coloque_aqui_o_sha256_da_chave
 ```
 
@@ -256,7 +265,8 @@ Fluxo recomendado:
 2. entregue a chave ao cliente por canal seguro
 3. salve apenas o hash em `API_KEY_HASHES`
 4. configure a URL pública da sua API em `https://api-adquirencia.bancog8.com.br`
-5. se a API de agentes for chamar o endpoint interno, configure `INTERNAL_WEBHOOK_SECRET`
+5. configure `TURSO_DATABASE_URL` e `TURSO_AUTH_TOKEN` no ambiente do Worker
+6. se a API de agentes for chamar o endpoint interno, configure `INTERNAL_WEBHOOK_SECRET`
 
 Para desenvolvimento local, copie `.dev.vars.example` para `.dev.vars`. O Wrangler carrega esse arquivo como bindings do Worker. Em produção, configure as mesmas variáveis no Cloudflare; `API_KEY_HASHES` deve ser cadastrado como secret (`wrangler secret put API_KEY_HASHES`).
 
@@ -268,10 +278,10 @@ Crie um arquivo `.env` com base em `.env.example`.
 - `AGENTS_API_BASE_URL`: URL base da API de agentes
 - `AGENTS_API_TIMEOUT_MS`: tempo limite da chamada ao upstream
 - `AGENTS_API_MAX_PAGES`: limite de páginas ao buscar a lista completa
-- `WEBHOOK_STORE_PATH`: arquivo local que guarda assinaturas e entregas
-- `WEBHOOK_POLL_INTERVAL_MS`: intervalo de varredura para detectar novos aprovados
 - `WEBHOOK_POLL_ENABLED`: habilita ou desabilita o monitoramento automático
 - `WEBHOOK_PUBLIC_BASE_URL`: URL pública usada nos links do Swagger
+- `TURSO_DATABASE_URL`: URL do banco libSQL/Turso
+- `TURSO_AUTH_TOKEN`: token de acesso ao banco Turso
 - `INTERNAL_WEBHOOK_SECRET`: segredo opcional para integrações internas com a API de agentes
 
 ## Gerar credenciais
