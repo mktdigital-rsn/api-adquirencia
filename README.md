@@ -270,6 +270,17 @@ Fluxo recomendado:
 
 Para desenvolvimento local, copie `.dev.vars.example` para `.dev.vars`. O Wrangler carrega esse arquivo como bindings do Worker. Em produção, configure as mesmas variáveis no Cloudflare; `API_KEY_HASHES` deve ser cadastrado como secret (`wrangler secret put API_KEY_HASHES`).
 
+### Deploy automático via GitHub Actions
+
+Ao fazer push na branch `main`, o workflow `.github/workflows/deploy.yml` publica a API automaticamente.
+
+Para isso, configure no repositório estes secrets:
+
+- `CLOUDFLARE_API_TOKEN`
+- `CLOUDFLARE_ACCOUNT_ID`
+
+Também garanta que as variáveis e secrets do Worker estejam criadas no Cloudflare, incluindo `TURSO_DATABASE_URL` e `TURSO_AUTH_TOKEN`.
+
 ## Variáveis de ambiente
 
 Crie um arquivo `.env` com base em `.env.example`.
