@@ -1,3 +1,5 @@
+import { renderCreditDocs } from './credit-docs'
+import { createCreditRoutes } from './credit-leads'
 import { Hono } from 'hono'
 
 import { fetchEstablishmentById, fetchEstablishments } from './agents-api'
@@ -157,6 +159,8 @@ app.get('/openapi.json', (c) =>
     'cache-control': 'no-store',
   })
 )
+
+app.get('/docs/credit-leads', (c) => c.html(renderCreditDocs(), 200, { 'cache-control': 'no-store', 'x-content-type-options': 'nosniff' }))
 
 app.get('/docs', (c) => {
   return new Response(renderDocsHtml({ specUrl: '/openapi.json' }), {
@@ -343,6 +347,8 @@ app.post('/api/webhooks/events/establishment-approved', async (c) => {
     { 'cache-control': 'no-store' }
   )
 })
+
+app.route('/', createCreditRoutes())
 
 export const scheduled = async (_event: ScheduledEvent, env: AppEnv, ctx: ExecutionContext) => {
   if (env.WEBHOOK_POLL_ENABLED === 'false') {

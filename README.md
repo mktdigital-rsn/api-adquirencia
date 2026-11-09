@@ -384,7 +384,7 @@ npm run typecheck
 npm run dev
 ```
 
-O Worker usa `PORT` somente para o servidor local. Por padrão, `npm run dev` inicia na porta `3000`.
+O comando local aceita `--port` explícito, com prioridade sobre `PORT`. O Worker usa `PORT` somente para o servidor local. Por padrão, `npm run dev` inicia na porta `3000`.
 
 ## Deploy
 
@@ -393,3 +393,107 @@ npm run deploy
 ```
 
 Antes do primeiro deploy, configure as variáveis no Cloudflare. O endpoint `API_KEY_HASHES` é obrigatório e deve ser definido como secret.
+
+## Receptor de solicitações de carta de crédito
+
+O Worker Hono recebe `credit.lead.created` do `bankwhitelabel-server`. Não há alteração no emissor ou nos webhooks de estabelecimentos. Não existe processamento posterior: o sucesso confirma o commit do evento e do snapshot na mesma transação.
+
+Rotas sem prefixo adicional:
+
+- `POST /webhooks/credit-leads`: escopo `ingest`, resposta 201 para criação, 200 para reenvio idêntico, 409 para identidade conflitante.
+- `GET /api/credit-leads`: escopo `read`, listagem e total limitados aos produtores e origens da credencial.
+- `GET /api/credit-leads/:leadId`: escopo `read`, 404 também para origens sem acesso.
+- `GET /health/live`: processo vivo.
+- `GET /health/ready`: valida configuração e consulta `credit_events`; 503 se indisponível.
+
+URL de produção, considerando o domínio configurado neste projeto: **https://api-adquirencia.bancog8.com.br/webhooks/credit-leads**. É necessário publicar esta versão e configurar o banco e as credenciais antes de usá-la.
+
+### Banco e configuração
+
+Reutiliza `TURSO_DATABASE_URL` e `TURSO_AUTH_TOKEN` existentes. Não usa PostgreSQL nem `DATABASE_URL`. A migração aditiva `migrations/0001_credit_leads.sql` cria somente `credit_events`, `credit_leads` e índices. JSON é armazenado em TEXT validado por `json_valid`, timestamps em UTC com nove casas decimais permitem filtros e ordenação por instante. As constraints únicas protegem `(producer,event_id)`, `(producer,lead_id)` e a FK única do snapshot. A migração `0002_credit_timestamp_precision.sql` ajusta datas já armazenadas com seis casas para nove, preservando os instantes e os snapshots. A aplicação não executa DDL em requisições.
+
+Os comandos locais exigem Node.js 20.12 ou superior e carregam `.dev.vars`, quando existe, ou `.env`, sem sobrescrever variáveis já exportadas. A geração de chave apenas exibe o segredo/hash: ela não cadastra a credencial automaticamente. Adicione `API_CREDENTIALS_JSON` ao arquivo local, conforme o exemplo abaixo.
+
+Execute a migração antes de iniciar/publicar o receptor:
+
+```bash
+# Configure as variáveis em .dev.vars (preferido) ou .env antes de executar.
+npm run credit:validate-config
+npm run credit:migrate
+npm run dev -- --port 8000
+```
+
+`credit:migrate` usa transação e é reaplicável. Não existe downgrade destrutivo automático: apagar essas tabelas remove snapshots e deduplicação histórica. Não há importação do receptor Python nem expiração de eventos. Restrinja o acesso ao banco e aos backups, que contêm dados pessoais.
+
+O runtime Workers recebe bindings somente quando é invocado. Por isso a configuração é validada antes de qualquer operação do receptor, e o comando `credit:validate-config` deve integrar a preparação de inicialização/deploy para impedir publicação com configuração inválida. Os endpoints antigos continuam independentes. `/health/live` não exige configuração. Não foi adicionado Docker: este projeto usa Wrangler e Turso; localmente exponha a porta 8000 e não a 8080 usada pelo emissor.
+
+### Emissão, rotação e revogação
+
+```bash
+npm run credit:issue-key -- credit-producer
+npm run credit:issue-key -- credit-reader
+```
+
+O comando offline gera 48 bytes aleatórios em base64url e exibe o segredo uma vez junto de seu SHA-256. Entregue o segredo por canal seguro; cadastre somente o hash. Não existe endpoint de emissão.
+
+`API_CREDENTIALS_JSON` está cadastrado em `vars` do `wrangler.jsonc` com os client IDs, permissões e hashes SHA-256 corretos, sem as chaves em texto. Em desenvolvimento, mantenha o cadastro sincronizado no `.env` ou `.dev.vars` (que pode sobrescrever os bindings). Não cadastre simultaneamente um secret Cloudflare com esse mesmo nome. As chaves originais ficam apenas nos sistemas que fazem as chamadas. Formato para novas credenciais (substitua os placeholders):
+
+```json
+[
+  {"client_id":"credit-producer","key_sha256":["<hash de 64 caracteres hex minúsculos>"],"scopes":["ingest"],"producers":["bankwhitelabel-server"],"origins":["PUBLICA","AGENTE","IB"]},
+  {"client_id":"credit-reader","key_sha256":["<outro hash>"],"scopes":["read"],"producers":["bankwhitelabel-server"],"origins":["PUBLICA"]}
+]
+```
+
+Ambos os headers `X-Client-Id` e `X-API-Key` são obrigatórios. Não há fallback para `API_KEY_HASHES`, Bearer ou variáveis `CREDIT_LEAD_WEBHOOK_API_KEY`. Credenciais de ingestão não recebem leitura automaticamente. Permissões são por produtor/origem, sem isolamento por agente.
+
+Para rotação, adicione o novo hash à mesma lista `key_sha256`, publique/recrie as instâncias, troque a chave no emissor e remova o hash antigo após a transição. Para revogar, remova o hash ou toda a credencial e atualize as instâncias. Não registre o cadastro nem os headers. Headers duplicados combinados com vírgula são rejeitados; o proxy de entrada deve preservar ou rejeitar duplicatas, nunca escolher silenciosamente um valor.
+
+### Contrato e consultas
+
+O evento completo está em `examples/credit-lead.json`. Campos adicionais são rejeitados e opcionais omitidos viram null. `amount` permanece string decimal positiva sem perda de precisão. `userId` exige inteiro seguro de JavaScript (`±9007199254740991`); o emissor deve respeitar esse intervalo. UUIDs são normalizados para minúsculas e timestamps para UTC. Datas exigem timezone e aceitam até nove casas decimais de segundo; precisão maior é rejeitada. Valores monetários textualmente diferentes, como `5000` e `5000.00`, são snapshots diferentes.
+
+A listagem aceita `page` (1–1000000), `page_size` (1–100, padrão 50), `origem`, `status=PENDENTE`, `producer`, `lead_id`, `created_from` e `created_to`. Filtros combinam com AND; datas são inclusivas e filtram a criação no emissor. Ordenação por criação e id interno decrescentes. O total recebe as mesmas permissões. Paginação por offset: inserções novas podem deslocar páginas. A consulta individual aceita `producer`, padrão `bankwhitelabel-server`.
+
+```bash
+curl -i http://localhost:8000/webhooks/credit-leads \
+  -H 'Content-Type: application/json' \
+  -H "X-Client-Id: $CREDIT_LEAD_WEBHOOK_CLIENT_ID" \
+  -H "X-API-Key: $CREDIT_LEAD_WEBHOOK_API_KEY" \
+  --data-binary @examples/credit-lead.json
+
+curl -s 'http://localhost:8000/api/credit-leads?origem=PUBLICA&page_size=10' \
+  -H "X-Client-Id: $READER_CLIENT_ID" -H "X-API-Key: $READER_KEY"
+
+curl -s http://localhost:8000/api/credit-leads/123 \
+  -H "X-Client-Id: $READER_CLIENT_ID" -H "X-API-Key: $READER_KEY"
+```
+
+Primeiro POST: 201, `duplicate=false`; segundo: 200, `duplicate=true`. O client_id e hash cadastrados devem corresponder aos headers. Emissor em Docker Desktop no Mac: `http://host.docker.internal:8000/webhooks/credit-leads`; a permissão de HTTP local deve ser configurada no emissor. Produção usa HTTPS.
+
+Para validar ponta a ponta, configure destino e credencial no emissor, crie uma solicitação na porta 8080, aguarde o worker de entrega e consulte o lead neste receptor. A criação no emissor pode retornar antes da entrega. Reenvie o mesmo evento para verificar a deduplicação.
+
+### Falhas, limites e operação
+
+Respostas: 401 credencial inválida; 403 permissão insuficiente; 404 lead ausente/sem acesso; 409 conflito; 413 corpo acima de 65536 bytes inclusive streaming; 422 JSON/contrato/filtros inválidos; 503 armazenamento indisponível com `Retry-After: 10`. Respostas de validação não incluem valores recebidos. Todas essas rotas aplicam `Cache-Control: no-store` e `X-Content-Type-Options: nosniff`.
+
+Logs estruturados contêm resultados `event_stored`, `event_duplicate`, `database_unavailable`, status HTTP e latência, sem payload, query string ou dados pessoais. O único identificador registrado é o UUID validado. Monitore 401, 403, 409, 422, 503 e latência a partir de `credit_request`; configure também o provedor/proxy para não registrar headers nem filtros de consulta. Indicadores SQL estão em `examples/credit-indicators.sql`; eventos sem lead devem ser zero.
+
+`npm test` usa bancos libSQL reais em arquivos temporários exclusivos, sem tocar no Turso configurado. Inclui conexões independentes concorrentes, constraints, rollback, falha simulada de commit, persistência entre instâncias, permissões, rotação e validação. O teste de commit injeta a falha antes do commit; falhas de rede com resultado indeterminado são recuperadas por reenvio idempotente. Não foi executado teste contra um Turso remoto ou o emissor real.
+
+
+### Documentação para o cliente leitor
+
+A tela pública `/docs/credit-leads` explica somente o fluxo e as rotas de leads de crédito, com autenticação, filtros e exemplos. O guia compartilhável está em `docs/credit-leads.md`. Não contém credenciais reais nem rotas de outros produtos.
+
+O webhook de entrada alimenta a API; o cliente consulta por GET. Não há entrega automática para webhook do cliente neste escopo. A chave do emissor continua exclusiva de ingestão.
+
+Para habilitar um cliente leitor:
+
+1. Execute `npm run credit:issue-key -- <identificador-exclusivo-do-cliente>`.
+2. Adicione uma entrada ao array JSON de `vars.API_CREDENTIALS_JSON` no `wrangler.jsonc`, preservando as entradas existentes: `client_id` emitido, `key_sha256` com somente o hash, `scopes: ["read"]`, `producers: ["bankwhitelabel-server"]` e `origins` com as origens autorizadas para esse cliente. Não conceda origens sem definir o acesso do parceiro.
+3. Sincronize o array no arquivo local usado (`.env` ou `.dev.vars`). Reinicie o Worker local; em produção publique a atualização. Não remova a credencial do produtor.
+4. Entregue somente client ID, segredo e origens autorizadas ao cliente por canal seguro, junto da URL `/docs/credit-leads`.
+5. Teste uma listagem e uma consulta individual com a credencial do cliente. Confirme que POST retorna 403 para essa credencial e que origens não autorizadas não aparecem.
+
+A única variável nova introduzida pelo receptor é `API_CREDENTIALS_JSON`; banco e token Turso já existiam. Variáveis `CREDIT_LEAD_WEBHOOK_*` de destino, retry, lease e timezone são exclusivas do emissor e não são necessárias neste Worker. O cadastro atual ainda não emite nem habilita uma credencial real de cliente leitor automaticamente.

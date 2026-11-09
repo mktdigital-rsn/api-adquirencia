@@ -5,11 +5,14 @@
   "description": "API de adquirencia G8 para consulta segura de estabelecimentos comerciais aprovados.",
   "type": "module",
   "scripts": {
-    "dev": "wrangler dev --port ${PORT:-3000}",
+    "dev": "node scripts/dev.js",
     "deploy": "wrangler deploy --minify",
     "cf-typegen": "wrangler types --env-interface CloudflareBindings",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "credit:migrate": "node scripts/migrate-credit.js",
+    "credit:issue-key": "node scripts/issue-credit-key.js",
+    "credit:validate-config": "node scripts/validate-credit-config.js"
   },
   "engines": {
     "node": ">=20"

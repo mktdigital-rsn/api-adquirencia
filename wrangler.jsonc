@@ -16,6 +16,7 @@
     "API_KEY_HASHES": "7a6a80f60613f5df771a25de3fa1a02828786903af529bddb35941c7b470b583",
     "WEBHOOK_POLL_ENABLED": "true",
     "WEBHOOK_PUBLIC_BASE_URL": "https://api-adquirencia.bancog8.com.br",
-    "TURSO_DATABASE_URL": "libsql://adquirencia-api-mktdigital-rsn.aws-us-east-1.turso.io"
+    "TURSO_DATABASE_URL": "libsql://adquirencia-api-mktdigital-rsn.aws-us-east-1.turso.io",
+    "API_CREDENTIALS_JSON": "[{\"client_id\":\"whitelabel-producer-6481ddd84a33c150\",\"key_sha256\":[\"6045b76ca27184b8c14b252f7b93bbd9f9d953551cd92a9f34cb9c9bba2935f7\"],\"scopes\":[\"ingest\"],\"producers\":[\"bankwhitelabel-server\"],\"origins\":[\"PUBLICA\",\"AGENTE\",\"IB\"]}]"
   }
 }

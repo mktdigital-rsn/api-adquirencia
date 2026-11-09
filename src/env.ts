@@ -1,4 +1,5 @@
 export interface AppEnv {
+  API_CREDENTIALS_JSON?: string
   PORT?: string
   AGENTS_API_BASE_URL?: string
   AGENTS_API_TIMEOUT_MS?: string

@@ -1,0 +1,21 @@
+{
+  "eventId": "dd128744-f7db-4706-bd27-6cae96de3c42",
+  "eventType": "credit.lead.created",
+  "schemaVersion": 1,
+  "occurredAt": "2026-11-09T15:00:00Z",
+  "producer": "bankwhitelabel-server",
+  "data": {
+    "leadId": "123",
+    "origem": "PUBLICA",
+    "status": "PENDENTE",
+    "amount": "5000.00",
+    "createdAt": "2026-11-09T15:00:00Z",
+    "userId": null,
+    "name": "Pessoa de exemplo",
+    "taxNumber": "00000000000",
+    "email": "pessoa@example.com",
+    "phoneNumber": "71999999999",
+    "userKind": "PF",
+    "agentId": null
+  }
+}
