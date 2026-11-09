@@ -16,6 +16,7 @@
     "email": "pessoa@example.com",
     "phoneNumber": "71999999999",
     "userKind": "PF",
-    "agentId": null
+    "agentId": null,
+    "birthDate": "1990-05-20"
   }
 }

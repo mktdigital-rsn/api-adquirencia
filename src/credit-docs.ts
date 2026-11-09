@@ -26,19 +26,11 @@ X-API-Key: &lt;segredo fornecido pela G8&gt;</code></pre>
 <p><code>READER_CLIENT_ID</code> e <code>READER_KEY</code> são variáveis do terminal com as credenciais fornecidas pela G8.</p>
 <pre><code>{
   "items": [{
-    "producer": "bankwhitelabel-server",
-    "leadId": "123",
-    "origem": "PUBLICA",
-    "status": "PENDENTE",
-    "amount": "5000.00",
-    "createdAt": "2026-11-09T15:00:00.123456789Z",
-    "userId": null,
     "name": "Pessoa de exemplo",
     "taxNumber": "00000000000",
     "email": "pessoa@example.com",
     "phoneNumber": "71999999999",
-    "userKind": "PF",
-    "agentId": null
+    "birthDate": "1990-05-20"
   }],
   "page": 1,
   "pageSize": 50,
@@ -56,9 +48,11 @@ X-API-Key: &lt;segredo fornecido pela G8&gt;</code></pre>
   -H "X-Client-Id: $READER_CLIENT_ID" \\
   -H "X-API-Key: $READER_KEY"</code></pre>
 <p>Retorna diretamente o objeto do lead mostrado na listagem. O parâmetro opcional <code>producer</code> assume <code>bankwhitelabel-server</code>. Retorna 404 se o registro não existir ou estiver fora das permissões.</p>
-<p><code>leadId</code> e <code>agentId</code> são strings. <code>amount</code> é uma string decimal: preserve a precisão com biblioteca decimal. Campos cadastrais podem ser null; <code>userKind</code> é PF, PJ ou null e <code>userId</code> é inteiro seguro ou null. Documentos e telefones são strings.</p></section>
-<section><h2>Buscar novos leads</h2><p>Consulte periodicamente em intervalo acordado com a G8. Fixe o fim do intervalo, percorra todas as páginas e use <code>(producer, leadId)</code> como chave no seu sistema.</p><p>Sobreponha janelas e reconcilie períodos anteriores: <code>createdAt</code> é a criação no emissor, não o recebimento. Entregas atrasadas podem trazer leads antigos. Não há cursor, filtro por recebimento ou marcação de leitura por cliente. <code>PENDENTE</code> é o status inicial da solicitação, não uma indicação de que você ainda não consumiu o registro.</p></section>
-<section><h2>Webhook de entrada</h2><h3><code>POST /webhooks/credit-leads</code> · exclusivo do produtor</h3><p>Usa credencial <code>ingest</code>. O cliente leitor não precisa chamar esta rota. O envelope contém <code>eventId</code> UUID, <code>eventType=credit.lead.created</code>, <code>schemaVersion=1</code> inteiro, <code>occurredAt</code> com timezone, <code>producer=bankwhitelabel-server</code> e <code>data</code> com o snapshot do lead sem producer.</p><p>Limite de 64 KiB. Campos adicionais são rejeitados; opcionais omitidos viram null. O sucesso confirma a gravação de evento e lead na mesma transação.</p>
+<p>A rota individual exige um <code>leadId</code> já conhecido no sistema de origem; esse identificador não aparece na listagem.</p>
+<p>Os objetos retornados contêm exatamente <code>name</code>, <code>email</code>, <code>phoneNumber</code>, <code>birthDate</code> e <code>taxNumber</code>. Nome, e-mail, telefone e CPF/documento são strings ou null. A data de nascimento usa <code>YYYY-MM-DD</code> ou null. Nenhum outro campo do snapshot é exposto. A listagem mantém os metadados de paginação fora de <code>items</code>.</p>
+<p>Eventos antigos sem data de nascimento retornam <code>birthDate: null</code>. O emissor precisa incluir <code>data.birthDate</code> nos novos eventos para que a data real seja disponibilizada.</p></section>
+<section><h2>Buscar novos leads</h2><p>Consulte periodicamente em intervalo acordado com a G8. Fixe o fim do intervalo e percorra todas as páginas. Os itens não expõem uma chave de solicitação; CPF, e-mail e telefone não garantem a identidade única de um lead.</p><p>Sobreponha janelas e reconcilie períodos anteriores: os filtros de data usam a criação no emissor, não o recebimento. Entregas atrasadas podem trazer leads antigos. Não há cursor, filtro por recebimento ou marcação de leitura por cliente. Esta listagem não é uma fila de consumo com confirmação por registro.</p></section>
+<section><h2>Webhook de entrada</h2><h3><code>POST /webhooks/credit-leads</code> · exclusivo do produtor</h3><p>Usa credencial <code>ingest</code>. O cliente leitor não precisa chamar esta rota. O envelope contém <code>eventId</code> UUID, <code>eventType=credit.lead.created</code>, <code>schemaVersion=1</code> inteiro, <code>occurredAt</code> com timezone, <code>producer=bankwhitelabel-server</code> e <code>data</code> com o snapshot do lead sem producer e <code>birthDate</code> opcional em <code>YYYY-MM-DD</code> ou null.</p><p>Limite de 64 KiB. Campos adicionais são rejeitados; opcionais omitidos viram null. O sucesso confirma a gravação de evento e lead na mesma transação.</p>
 <pre><code>201 · {"eventId":"&lt;UUID&gt;","duplicate":false}
 200 · {"eventId":"&lt;UUID&gt;","duplicate":true}</code></pre><p>Um reenvio idêntico não duplica o lead. Mesmo evento com conteúdo diferente, ou outro evento para o mesmo lead, retorna 409.</p></section>
 <section><h2>Respostas e suporte</h2><div class="table"><table><thead><tr><th>HTTP</th><th>Significado</th></tr></thead><tbody>

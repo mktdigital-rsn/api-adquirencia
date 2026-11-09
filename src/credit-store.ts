@@ -36,7 +36,17 @@ export function createCreditStore(db: Client) {
       }
       if (leadId !== undefined) { conditions.push('lead_id = ?'); args.push(leadId) }
       const where = conditions.join(' AND ')
-      const item = (row: Record<string,unknown>) => ({producer:row.producer,...JSON.parse(String(row.data))})
+      const item = (row: Record<string,unknown>) => {
+        const data = JSON.parse(String(row.data))
+        // Explicit allowlist shared by list and detail; never spread the stored snapshot.
+        return {
+          name: data.name ?? null,
+          email: data.email ?? null,
+          phoneNumber: data.phoneNumber ?? null,
+          birthDate: data.birthDate ?? null,
+          taxNumber: data.taxNumber ?? null,
+        }
+      }
       if (leadId !== undefined) {
         const row = (await db.execute({sql:`SELECT producer,data FROM credit_leads WHERE ${where} LIMIT 1`,args})).rows[0]
         if (!row) throw new CreditError(404,'Lead not found')

@@ -26,13 +26,23 @@ export function timestamp(value: unknown): string {
   if (!Number.isFinite(date.getTime())) throw invalid()
   return date.toISOString().replace(/\.\d{3}Z$/, '.' + (match[7] ?? '').padEnd(9, '0') + 'Z')
 }
+export function birthDate(value: unknown): string | null {
+  if (value == null) return null
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) throw invalid()
+  const [year, month, day] = value.split('-').map(Number)
+  const leap = year! % 4 === 0 && (year! % 100 !== 0 || year! % 400 === 0)
+  const days = [31, leap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+  if (month! < 1 || month! > 12 || day! < 1 || day! > days[month! - 1]!) throw invalid()
+  return value
+}
+
 export function normalizeEvent(input: unknown) {
   const e = object(input)
   exact(e, ['eventId', 'eventType', 'schemaVersion', 'occurredAt', 'producer', 'data'])
   const eventId = string(e.eventId, 36).toLowerCase()
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(eventId) || e.eventType !== 'credit.lead.created' || e.schemaVersion !== 1 || e.producer !== producer) throw invalid()
   const d = object(e.data)
-  exact(d, ['leadId','origem','status','amount','createdAt','userId','name','taxNumber','email','phoneNumber','userKind','agentId'])
+  exact(d, ['leadId','origem','status','amount','createdAt','userId','name','taxNumber','email','phoneNumber','userKind','agentId','birthDate'])
   const amount = string(d.amount, 100)
   if (!/^\d+(\.\d+)?$/.test(amount) || !/[1-9]/.test(amount) || !origins.includes(d.origem as string) || d.status !== 'PENDENTE') throw invalid()
   const userId = d.userId ?? null
@@ -45,7 +55,7 @@ export function normalizeEvent(input: unknown) {
   if (d.userKind != null && !['PF','PJ'].includes(d.userKind as string)) throw invalid()
   return { eventId, eventType: 'credit.lead.created', schemaVersion: 1, occurredAt: timestamp(e.occurredAt), producer,
     data: { leadId: string(d.leadId,128), origem: d.origem as string, status: 'PENDENTE', amount, createdAt: timestamp(d.createdAt), userId,
-      name: optional('name',500), taxNumber: optional('taxNumber',100), email: optional('email',320), phoneNumber: optional('phoneNumber',100), userKind: (d.userKind ?? null) as string | null, agentId: optional('agentId',255) } }
+      birthDate: birthDate(d.birthDate), name: optional('name',500), taxNumber: optional('taxNumber',100), email: optional('email',320), phoneNumber: optional('phoneNumber',100), userKind: (d.userKind ?? null) as string | null, agentId: optional('agentId',255) } }
 }
 export type CreditEvent = ReturnType<typeof normalizeEvent>
 // Objects have a fixed schema and construction order, including all optional nulls.

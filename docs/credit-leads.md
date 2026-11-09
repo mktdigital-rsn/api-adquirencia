@@ -75,19 +75,11 @@ Resposta HTTP 200:
 {
   "items": [
     {
-      "producer": "bankwhitelabel-server",
-      "leadId": "123",
-      "origem": "PUBLICA",
-      "status": "PENDENTE",
-      "amount": "5000.00",
-      "createdAt": "2026-11-09T15:00:00.123456789Z",
-      "userId": null,
       "name": "Pessoa de exemplo",
       "taxNumber": "00000000000",
       "email": "pessoa@example.com",
       "phoneNumber": "71999999999",
-      "userKind": "PF",
-      "agentId": null
+      "birthDate": "1990-05-20"
     }
   ],
   "page": 1,
@@ -115,7 +107,7 @@ Ordenação: criação decrescente, com id interno decrescente no desempate. Os 
 
 ## Consultar um lead
 
-Use o `leadId` recebido na listagem como string:
+Esta rota aceita um `leadId` conhecido no sistema de origem. A listagem não expõe esse identificador:
 
 ```bash
 curl "$G8_API_BASE_URL/api/credit-leads/123?producer=bankwhitelabel-server" \
@@ -129,29 +121,29 @@ curl "$G8_API_BASE_URL/api/credit-leads/123?producer=bankwhitelabel-server" \
 
 | Campo | Significado |
 | --- | --- |
-| `producer` + `leadId` | Identidade da solicitação. Utilize os dois para evitar duplicatas na sua integração. |
-| `origem` | Canal de criação: `PUBLICA`, `AGENTE` ou `IB`. |
-| `status` | Snapshot inicial: `PENDENTE`. |
-| `amount` | Valor decimal em **string**. Use uma biblioteca decimal; evite converter para ponto flutuante. |
-| `createdAt` | Instante de criação no sistema de origem, não o recebimento do webhook. |
-| `userId` | Inteiro seguro de JavaScript ou null. |
-| `name`, `taxNumber`, `email`, `phoneNumber` | Dados cadastrais opcionais, strings ou null. Documentos e telefones permanecem strings. |
-| `userKind` | `PF`, `PJ` ou null. |
-| `agentId` | String ou null; não altera as permissões de leitura. |
+| `name` | Nome, string ou null. |
+| `email` | E-mail, string ou null. |
+| `phoneNumber` | Telefone, string ou null. |
+| `birthDate` | Data de nascimento em `YYYY-MM-DD`, ou null quando não informada pelo emissor. |
+| `taxNumber` | CPF/documento recebido do emissor, preservado como string ou null. |
+
+Cada item da listagem e a consulta individual retornam **exatamente esses cinco campos**. Nenhum valor de crédito, status, origem, identificador ou data de criação é exposto no objeto. A listagem mantém somente os metadados de paginação (`page`, `pageSize`, `total`) fora de `items`.
+
+Eventos antigos sem `birthDate` continuam disponíveis, com `birthDate: null`. O emissor deve incluir `data.birthDate` nos novos eventos para disponibilizar a data real; o receptor não consulta nem deduz essa informação.
 
 ## Buscar novos leads periodicamente
 
 O cliente pode consultar a API periodicamente, em intervalo acordado com a equipe G8. Não há endpoint de cursor ou filtro por data de recebimento.
 
-Para uma coleta por intervalo, fixe `created_to`, percorra todas as páginas e salve/atualize os resultados usando `(producer, leadId)` como chave. Sobreponha intervalos e faça reconciliações de períodos anteriores: a entrega pode atrasar e o filtro usa a **criação** do lead. Um lead antigo recebido depois pode não entrar em uma janela recente. A sobreposição por si só não garante recuperar atrasos de duração arbitrária.
+Para uma coleta por intervalo, fixe `created_to`, percorra todas as páginas e trate os resultados conforme o fluxo do seu sistema. Os itens não incluem uma chave de solicitação; não use CPF, e-mail ou telefone como garantia de identidade única de um lead. Sobreponha intervalos e faça reconciliações de períodos anteriores: a entrega pode atrasar e o filtro usa a **criação** do lead. Um lead antigo recebido depois pode não entrar em uma janela recente. A sobreposição por si só não garante recuperar atrasos de duração arbitrária.
 
-O status `PENDENTE` não significa que o cliente ainda não leu o lead. Esta API não mantém marcação de leitura por cliente. O cliente controla localmente quais registros já consumiu.
+Esta API não mantém marcação de leitura por cliente nem expõe identificadores de solicitação na resposta. A listagem não é uma fila de consumo com confirmação por registro.
 
 ## Ingestão — usada pelo sistema de origem
 
 `POST /webhooks/credit-leads` é reservado ao produtor com credencial `ingest`. O cliente de leitura não precisa chamá-lo.
 
-O envelope contém `eventId` (UUID), `eventType=credit.lead.created`, `schemaVersion=1` (inteiro), `occurredAt` (com timezone), `producer=bankwhitelabel-server` e `data` (snapshot do lead sem `producer`). Campos extras são rejeitados e opcionais omitidos viram null. O limite é 64 KiB.
+O envelope contém `eventId` (UUID), `eventType=credit.lead.created`, `schemaVersion=1` (inteiro), `occurredAt` (com timezone), `producer=bankwhitelabel-server` e `data` (snapshot do lead sem `producer`, incluindo `birthDate` opcional em `YYYY-MM-DD` ou null). Campos extras são rejeitados e opcionais omitidos viram null. O limite é 64 KiB.
 
 A G8 responde somente após gravar evento e lead na mesma transação:
 

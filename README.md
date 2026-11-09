@@ -451,6 +451,10 @@ Para rotação, adicione o novo hash à mesma lista `key_sha256`, publique/recri
 
 ### Contrato e consultas
 
+As respostas de listagem e consulta individual expõem exclusivamente `name`, `email`, `phoneNumber`, `birthDate` e `taxNumber`, com uma allowlist explícita. Os metadados da paginação permanecem fora dos itens. O evento completo continua armazenado internamente para auditoria e deduplicação; os demais campos não são retornados aos leitores.
+
+O evento aceita `data.birthDate` opcional em `YYYY-MM-DD` ou null, sem timezone (data civil). Eventos antigos sem esse campo continuam válidos e retornam null. A data precisa ser enviada pelo emissor; não é derivada pelo receptor. A inclusão no snapshot JSON não exige migração SQL nem nova variável de ambiente. A consulta individual continua exigindo um leadId conhecido externamente; a listagem não o expõe.
+
 O evento completo está em `examples/credit-lead.json`. Campos adicionais são rejeitados e opcionais omitidos viram null. `amount` permanece string decimal positiva sem perda de precisão. `userId` exige inteiro seguro de JavaScript (`±9007199254740991`); o emissor deve respeitar esse intervalo. UUIDs são normalizados para minúsculas e timestamps para UTC. Datas exigem timezone e aceitam até nove casas decimais de segundo; precisão maior é rejeitada. Valores monetários textualmente diferentes, como `5000` e `5000.00`, são snapshots diferentes.
 
 A listagem aceita `page` (1–1000000), `page_size` (1–100, padrão 50), `origem`, `status=PENDENTE`, `producer`, `lead_id`, `created_from` e `created_to`. Filtros combinam com AND; datas são inclusivas e filtram a criação no emissor. Ordenação por criação e id interno decrescentes. O total recebe as mesmas permissões. Paginação por offset: inserções novas podem deslocar páginas. A consulta individual aceita `producer`, padrão `bankwhitelabel-server`.

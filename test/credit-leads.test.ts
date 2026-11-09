@@ -37,11 +37,36 @@ describe('credit receiver with real libSQL',()=>{
     const s = await setup(); const e = structuredClone(sample); e.data.origem = origem
     expect((await s.request(undefined,e)).status).toBe(201)
     expect(await s.count('credit_events')).toBe(1); expect(await s.count('credit_leads')).toBe(1)
-    expect(await (await s.request('/api/credit-leads/123')).json()).toMatchObject({amount:'5000.00',origem})
+    expect(JSON.parse(String((await s.db.execute('SELECT data FROM credit_leads')).rows[0]!.data))).toMatchObject({amount:'5000.00',origem})
     expect((await s.request(undefined,e)).status).toBe(200)
     e.data.amount = '6000'; expect((await s.request(undefined,e)).status).toBe(409)
     e.eventId = crypto.randomUUID(); expect((await s.request(undefined,e)).status).toBe(409)
     expect(await s.count('credit_events')).toBe(1)
+  })
+  it('exposes exactly five personal fields in both list and detail, even for stored extra fields',async()=>{
+    const s=await setup();await s.request()
+    const data={...sample.data,secretInternalField:'never-expose'}
+    await s.db.execute({sql:'UPDATE credit_leads SET data=?',args:[JSON.stringify(data)]})
+    const expected={name:sample.data.name,email:sample.data.email,phoneNumber:sample.data.phoneNumber,birthDate:'1990-05-20',taxNumber:sample.data.taxNumber}
+    expect(await (await s.request('/api/credit-leads/123')).json()).toEqual(expected)
+    expect(await (await s.request('/api/credit-leads')).json()).toEqual({items:[expected],page:1,pageSize:50,total:1})
+  })
+  it('accepts old events without birthDate and preserves retries of legacy stored payloads',async()=>{
+    const s=await setup(),e=structuredClone(sample);delete e.data.birthDate
+    await s.request(undefined,e)
+    const old=normalizeEvent(e) as any;delete old.data.birthDate
+    await s.db.execute({sql:'UPDATE credit_events SET payload=?',args:[JSON.stringify(old)]})
+    await s.db.execute({sql:'UPDATE credit_leads SET data=?',args:[JSON.stringify(old.data)]})
+    expect((await s.request(undefined,e)).status).toBe(200)
+    const detail=await (await s.request('/api/credit-leads/123')).json() as Record<string,unknown>
+    expect(detail.birthDate).toBeNull();expect(Object.keys(detail).sort()).toEqual(['birthDate','email','name','phoneNumber','taxNumber'])
+  })
+  it.each(['2000-02-29','1990-05-20',null])('accepts birthDate %s',value=>{
+    expect(normalizeEvent({...sample,data:{...sample.data,birthDate:value}}).data.birthDate).toBe(value)
+  })
+  it.each(['2025-02-29','1990-04-31','1990-13-01','1990-00-01','1990-01-00','20/05/1990','1990-05-20T00:00:00Z',123])('rejects invalid birthDate %s',async value=>{
+    const s=await setup();expect((await s.request(undefined,{...sample,data:{...sample.data,birthDate:value}})).status).toBe(422)
+    expect(await s.count('credit_events')).toBe(0)
   })
   it('concurrent independent connections and application restart deduplicate',async()=>{
     const s = await setup(), other = createCreditRoutes(()=>createCreditStore(s.other))
