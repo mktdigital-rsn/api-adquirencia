@@ -1,3 +1,5 @@
+import { renderCreditDashboard } from './credit-dashboard'
+import { creditDashboardScript } from './credit-dashboard-client'
 import { renderCreditDocs } from './credit-docs'
 import { createCreditRoutes } from './credit-leads'
 import { Hono } from 'hono'
@@ -159,6 +161,20 @@ app.get('/openapi.json', (c) =>
     'cache-control': 'no-store',
   })
 )
+
+app.get('/leads/credit', (c) => c.html(renderCreditDashboard(), 200, {
+  'cache-control': 'no-store',
+  'x-content-type-options': 'nosniff',
+  'x-frame-options': 'DENY',
+  'referrer-policy': 'no-referrer',
+  'content-security-policy': "default-src 'none'; script-src 'self'; style-src 'unsafe-inline'; connect-src 'self'; img-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
+}))
+
+app.get('/assets/credit-leads.js', (c) => c.body(creditDashboardScript, 200, {
+  'content-type': 'text/javascript; charset=utf-8',
+  'cache-control': 'no-store',
+  'x-content-type-options': 'nosniff',
+}))
 
 app.get('/docs/credit-leads', (c) => c.html(renderCreditDocs(), 200, { 'cache-control': 'no-store', 'x-content-type-options': 'nosniff' }))
 

@@ -501,3 +501,15 @@ Para habilitar um cliente leitor:
 5. Teste uma listagem e uma consulta individual com a credencial do cliente. Confirme que POST retorna 403 para essa credencial e que origens não autorizadas não aparecem.
 
 A única variável nova introduzida pelo receptor é `API_CREDENTIALS_JSON`; banco e token Turso já existiam. Variáveis `CREDIT_LEAD_WEBHOOK_*` de destino, retry, lease e timezone são exclusivas do emissor e não são necessárias neste Worker. O cadastro atual ainda não emite nem habilita uma credencial real de cliente leitor automaticamente.
+
+### Painel visual de leads
+
+`GET /leads/credit` serve a tela de acompanhamento no mesmo Worker. Abra `http://localhost:8000/leads/credit` no desenvolvimento ou `https://api-adquirencia.bancog8.com.br/leads/credit` após publicar. A página pede client ID e API key com escopo `read` e utiliza a mesma API autenticada; o HTML público não contém leads nem credenciais.
+
+A chave é mantida somente em memória na aba, enviada nos dois headers das chamadas à mesma origem e descartada ao sair/recarregar. Não usa localStorage, sessionStorage, cookies ou credenciais embutidas. A tela só mostra nome, e-mail, telefone, nascimento e CPF/documento. Dados ausentes aparecem como “Não informado”. As permissões do cadastro continuam sendo aplicadas pelo backend.
+
+A listagem é consultada a cada cinco segundos enquanto a aba está visível, sem requisições sobrepostas. Um aumento no total gera um aviso; os contatos que entram na página recebem destaque temporário. Como a API não expõe IDs nem uma sequência de recebimento, o destaque compara os cinco campos com suas multiplicidades e não representa uma identidade garantida de evento. Os dados seguem a ordenação por criação da API: um evento atrasado pode aparecer em uma página anterior, não necessariamente no topo. Em páginas posteriores há um atalho para voltar ao início quando o total aumenta.
+
+A busca considera somente os contatos da página carregada; a paginação consulta o banco normalmente. A tela pausa as consultas quando a aba fica oculta, retoma ao voltar, informa quando os dados estão desatualizados e respeita `Retry-After` em 503/429. Credenciais inválidas ou sem leitura encerram o acesso, sem expor dados anteriores. O botão Sair remove os contatos da tela e encerra a atualização.
+
+Não é necessário cadastrar outro webhook, configurar nova variável ou executar migração para usar o painel. O fluxo é: emissor envia → receptor persiste → próxima consulta da tela exibe os dados autorizados. Não há conexão direta do navegador com o emissor nem alterações na entrega dos eventos.

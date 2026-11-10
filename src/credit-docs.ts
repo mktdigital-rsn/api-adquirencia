@@ -12,6 +12,7 @@ export function renderCreditDocs() {
 <div class="step"><b>4 · Consulta</b>Seu backend consulta a API com uma credencial de leitura.</div>
 </div>
 <p class="note">Esta API recebe o webhook do sistema de origem. O cliente consulta os leads por GET; não há notificação automática desta API para um webhook do cliente. O snapshot representa a criação, sem atualização posterior de aprovação.</p>
+<section><h2>Prefere visualizar no navegador?</h2><p>Abra o <a href="/leads/credit">painel de leads de crédito</a>, informe sua credencial de leitura e acompanhe os cinco dados de contato em uma tela com atualização automática a cada cinco segundos, enquanto a aba está visível. A chave não é salva no navegador. A busca considera a página atual; as permissões são as mesmas da API.</p></section>
 <section><h2>Conectar seu backend</h2><p>Base de produção, após publicação: <code>https://api-adquirencia.bancog8.com.br</code>. Para desenvolvimento local: <code>http://localhost:8000</code>.</p><p>A equipe G8 entrega um <code>client_id</code> e uma API key por canal seguro, com escopo <code>read</code> e as origens autorizadas. Envie ambos os headers em todas as consultas:</p>
 <pre><code>X-Client-Id: &lt;client_id fornecido pela G8&gt;
 X-API-Key: &lt;segredo fornecido pela G8&gt;</code></pre>

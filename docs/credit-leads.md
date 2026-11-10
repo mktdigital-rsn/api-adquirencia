@@ -170,3 +170,9 @@ Erros usam `{"detail":"mensagem"}` sem reproduzir os valores recebidos. As respo
 `GET /health/live` verifica se o processo responde; `GET /health/ready` verifica a prontidão do armazenamento/configuração. São públicos e não retornam dados de leads. Não substituem a validação de acesso com a credencial do cliente.
 
 Em caso de suporte, informe horário com timezone, rota, código HTTP e identificador da solicitação quando disponível. Não envie API keys nem payloads com dados pessoais em logs de diagnóstico.
+
+## Visualizar no navegador
+
+Além da integração por API, a equipe pode abrir `/leads/credit` no mesmo domínio e informar o client ID e a API key de leitura. O painel mostra somente os cinco campos autorizados, com paginação e busca na página atual.
+
+A lista é atualizada a cada cinco segundos enquanto a aba está visível. A captura continua acontecendo no webhook existente: não é necessário cadastrar outro webhook. Os leads aparecem na ordem de criação do sistema de origem; uma entrega atrasada pode aparecer em outra página. A chave não é salva no navegador: sair ou recarregar exige uma nova conexão. A tela respeita as mesmas origens autorizadas da API.
