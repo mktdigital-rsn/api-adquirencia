@@ -17,6 +17,20 @@
     "WEBHOOK_POLL_ENABLED": "true",
     "WEBHOOK_PUBLIC_BASE_URL": "https://api-adquirencia.bancog8.com.br",
     "TURSO_DATABASE_URL": "libsql://adquirencia-api-mktdigital-rsn.aws-us-east-1.turso.io",
-    "API_CREDENTIALS_JSON": "[{\"client_id\":\"whitelabel-producer-6481ddd84a33c150\",\"key_sha256\":[\"6045b76ca27184b8c14b252f7b93bbd9f9d953551cd92a9f34cb9c9bba2935f7\"],\"scopes\":[\"ingest\"],\"producers\":[\"bankwhitelabel-server\"],\"origins\":[\"PUBLICA\",\"AGENTE\",\"IB\"]},{\"client_id\":\"cliente-reader\",\"key_sha256\":[\"7250b76b6355220fa5c260c6a9262de40d7f214481635651885ab6cf48a6e8a2\"],\"scopes\":[\"read\"],\"producers\":[\"bankwhitelabel-server\"],\"origins\":[\"PUBLICA\"]}]"
+    "API_CREDENTIALS_JSON": "[{\"client_id\":\"whitelabel-producer-6481ddd84a33c150\",\"key_sha256\":[\"6045b76ca27184b8c14b252f7b93bbd9f9d953551cd92a9f34cb9c9bba2935f7\"],\"scopes\":[\"ingest\"],\"producers\":[\"bankwhitelabel-server\"],\"origins\":[\"PUBLICA\",\"AGENTE\",\"IB\"]},{\"client_id\":\"cliente-reader\",\"key_sha256\":[\"7250b76b6355220fa5c260c6a9262de40d7f214481635651885ab6cf48a6e8a2\"],\"scopes\":[\"read\"],\"producers\":[\"bankwhitelabel-server\"],\"origins\":[\"PUBLICA\"]}]",
+    "CREDIT_LEAD_WEBHOOK_ENABLED": true,
+    "CREDIT_LEAD_WEBHOOK_DELIVERY_ENABLED": true,
+    "CREDIT_LEAD_WEBHOOK_URL": "https://receiver.example.com/webhooks/credit-leads",
+    "CREDIT_LEAD_WEBHOOK_CLIENT_ID": "whitelabel-producer-6481ddd84a33c150",
+    "CREDIT_LEAD_WEBHOOK_API_KEY": "RSl1fLeSoXTe8QDhRLRt0VR5B2TozgibGpiCbPKoEppGq-RQYqSZfHe-Qk91v3zf",
+    "CREDIT_LEAD_WEBHOOK_SOURCE_ZONE": "America/Sao_Paulo",
+    "CREDIT_LEAD_WEBHOOK_MAX_ATTEMPTS": 10,
+    "CREDIT_LEAD_WEBHOOK_BATCH_SIZE": 20,
+    "CREDIT_LEAD_WEBHOOK_POLL_INTERVAL_MS": 5000,
+    "CREDIT_LEAD_WEBHOOK_CONNECT_TIMEOUT_SECONDS": 5,
+    "CREDIT_LEAD_WEBHOOK_REQUEST_TIMEOUT_SECONDS": 15,
+    "CREDIT_LEAD_WEBHOOK_LEASE_SECONDS": 120,
+    "CREDIT_LEAD_WEBHOOK_INITIAL_RETRY_SECONDS": 10,
+    "CREDIT_LEAD_WEBHOOK_MAX_RETRY_SECONDS": 3600
   }
 }
