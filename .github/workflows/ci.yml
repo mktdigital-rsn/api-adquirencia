@@ -21,5 +21,8 @@ jobs:
       - name: Install
         run: npm ci
 
+      - name: Validate Wrangler configuration
+        run: npm run credit:validate-wrangler
+
       - name: Test
         run: npm test
