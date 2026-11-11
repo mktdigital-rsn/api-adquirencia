@@ -513,3 +513,5 @@ A listagem é consultada a cada cinco segundos enquanto a aba está visível, se
 A busca considera somente os contatos da página carregada; a paginação consulta o banco normalmente. A tela pausa as consultas quando a aba fica oculta, retoma ao voltar, informa quando os dados estão desatualizados e respeita `Retry-After` em 503/429. Credenciais inválidas ou sem leitura encerram o acesso, sem expor dados anteriores. O botão Sair remove os contatos da tela e encerra a atualização.
 
 Não é necessário cadastrar outro webhook, configurar nova variável ou executar migração para usar o painel. O fluxo é: emissor envia → receptor persiste → próxima consulta da tela exibe os dados autorizados. Não há conexão direta do navegador com o emissor nem alterações na entrega dos eventos.
+
+A credencial operacional `cliente-reader` tem escopo somente `read` e acesso às três origens: `PUBLICA`, `IB` e `AGENTE`. O mesmo cadastro deve estar sincronizado em `vars.API_CREDENTIALS_JSON` do Wrangler e no ambiente local. Isso não altera as permissões de ingestão nem os cinco campos retornados nas consultas.

@@ -21,7 +21,7 @@ describe('production Wrangler credential registry',()=>{
   it('authenticates a reader from the committed deployment configuration without local env overrides',async()=>{
     const config=JSON.parse(readFileSync('wrangler.jsonc','utf8'))
     const entries=parseCredentials(config.vars.API_CREDENTIALS_JSON)
-    expect(entries.find(c=>c.client_id==='cliente-reader')).toMatchObject({scopes:['read'],origins:['PUBLICA']})
+    expect(entries.find(c=>c.client_id==='cliente-reader')).toMatchObject({scopes:['read'],origins:['PUBLICA','IB','AGENTE']})
     expect(entries.find(c=>c.client_id==='whitelabel-producer-6481ddd84a33c150')).toBeDefined()
     // Exercise the deployment reader's permissions using a throwaway test secret.
     const testKey='deployment-registry-test-only'

@@ -75,6 +75,21 @@ describe('credit receiver with real libSQL',()=>{
     expect(await s.count('credit_events')).toBe(1); expect(await s.count('credit_leads')).toBe(1)
     expect(await createCreditStore(s.other).ingest(normalizeEvent(sample))).toBe(true)
   })
+  it('allows the configured cliente-reader to list every origin without gaining ingestion access',async()=>{
+    const s=await setup()
+    for (const origem of ['PUBLICA','IB','AGENTE']) {
+      const e=structuredClone(sample);e.eventId=crypto.randomUUID();e.data.leadId=origem;e.data.origem=origem
+      expect((await s.request(undefined,e)).status).toBe(201)
+    }
+    const config=JSON.parse(readFileSync('wrangler.jsonc','utf8'))
+    const reader=JSON.parse(config.vars.API_CREDENTIALS_JSON).find((c: {client_id:string})=>c.client_id==='cliente-reader')
+    s.env.API_CREDENTIALS_JSON=JSON.stringify([{...reader,key_sha256:[hash('reader-test-only')]}])
+    const auth={'x-client-id':'cliente-reader','x-api-key':'reader-test-only'}
+    const listing=await (await s.request('/api/credit-leads',undefined,auth)).json() as {total:number;items:unknown[]}
+    expect(listing.total).toBe(3);expect(listing.items).toHaveLength(3)
+    for (const origem of ['PUBLICA','IB','AGENTE']) expect((await s.request('/api/credit-leads/'+origem,undefined,auth)).status).toBe(200)
+    expect((await s.request(undefined,sample,auth)).status).toBe(403)
+  })
   it('restricts rows, count and individual reads by origin',async()=>{
     const s = await setup(); await s.request()
     const e = structuredClone(sample); e.eventId = crypto.randomUUID(); e.data.leadId='ib';e.data.origem='IB';await s.request(undefined,e)
