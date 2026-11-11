@@ -6,8 +6,7 @@
   "triggers": {
     "crons": [
       "* * * * *"
-    ]
-  },
+    ] },
   "vars": {
     "PORT": "3000",
     "AGENTS_API_BASE_URL": "https://agentes-api.bancog8dev.workers.dev",
@@ -31,6 +30,10 @@
     "CREDIT_LEAD_WEBHOOK_REQUEST_TIMEOUT_SECONDS": 15,
     "CREDIT_LEAD_WEBHOOK_LEASE_SECONDS": 120,
     "CREDIT_LEAD_WEBHOOK_INITIAL_RETRY_SECONDS": 10,
-    "CREDIT_LEAD_WEBHOOK_MAX_RETRY_SECONDS": 3600
+    "CREDIT_LEAD_WEBHOOK_MAX_RETRY_SECONDS": 3600,
+    "POSTGRES_PASSWORD": "qvmVlH2K3Q-PQr6sYuObPEEx2G5dOupjickCafNht5k",
+    "DATABASE_URL": "postgresql+psycopg://receiver:qvmVlH2K3Q-PQr6sYuObPEEx2G5dOupjickCafNht5k@db:5432/credit_leads",
+    "API_CREDENTIALS_JSON": "[{"client_id":"whitelabel-producer-6481ddd84a33c150","key_sha256":["6045b76ca27184b8c14b252f7b93bbd9f9d953551cd92a9f34cb9c9bba2935f7"],"scopes":["ingest"],"producers":["bankwhitelabel-server"],"origins":["PUBLICA","AGENTE","IB"]},{"client_id":"operations","key_sha256":["fd2bd10c0ebda786cc40065921d60de1d7da242095d99026af9d23c5462fd9f2"],"scopes":["read"],"producers":["bankwhitelabel-server"],"origins":["PUBLICA","AGENTE","IB"]}]"
+
   }
 }
