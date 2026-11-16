@@ -103,3 +103,35 @@ Esse comando faz somente a alteração no banco. O cron entrega depois. Preserva
 ## Limites da primeira versão
 
 Sem backfill automático de leads já existentes, sem envio de teste real automático, sem alterações no emissor e sem mudança nos cinco campos disponíveis no GET/painel. A entrega externa tem quatro campos e não inclui nascimento. Apenas um destino Sailer é configurado; mudar a URL passa a valer para todas as entregas pendentes, portanto não use essa variável para alternar clientes diferentes sem reconciliar a fila.
+
+## Aviso de coleta de documentos não concluída
+
+O receptor também aceita `credit.lead.documents.overdue` no mesmo `POST /webhooks/credit-leads`, com schemaVersion 1 e as mesmas credenciais. O emissor já determina a elegibilidade após 24 horas; o receptor não agenda nem recalcula essa regra. A regra atual do emissor inclui coleta parcial ainda não concluída, não apenas ausência completa de arquivos.
+
+Contrato de entrada completo: `examples/credit-documents-overdue.json`. Além do envelope, data contém leadId e collectionLinkId como strings, name/email/taxNumber opcionais, status como string, requestedAt/dueAt/expiresAt com timezone, thresholdHours inteiro exatamente 24 e message. Campos adicionais são rejeitados. Não há token ou URL de acesso à coleta nesse contrato.
+
+O emissor não envia telefone nem origem nesse evento. O receptor resolve a origem e o telefone pelo snapshot do lead já armazenado, usando `(producer, leadId)`. As permissões de ingestão para a origem são respeitadas. Se o lead ainda não existe, somente uma credencial autorizada a todas as origens pode armazenar o aviso; a entrega fica bloqueada com `missing_lead`. Quando o evento de criação chega, a mesma transação preenche a entrega pendente com o telefone e a libera. Não é criado um lead a partir do aviso, nem é alterado o snapshot da criação.
+
+Sem telefone válido no snapshot, o envio fica bloqueado com `invalid_phone`, como nos eventos de criação. Não são inventados números nem consultadas APIs externas para enriquecer o aviso.
+
+Para a Sailer, o POST continua contendo somente o envelope e os quatro campos autorizados:
+
+```json
+{
+  "eventId": "c8ee19e6-b015-4306-bec4-0a8cdbfd6db9",
+  "eventType": "credit.lead.documents.overdue",
+  "occurredAt": "2026-11-17T15:01:00.000000000Z",
+  "data": {
+    "name": "Pessoa de exemplo",
+    "taxNumber": "00000000000",
+    "email": "pessoa@example.com",
+    "phoneNumber": "71999999999"
+  }
+}
+```
+
+O eventType informa o motivo para a automação do cliente; mensagem, IDs internos, datas do link, status, thresholdHours e nascimento não são encaminhados. A Sailer precisa mapear esse novo eventType para a automação desejada. O evento mantém o próprio eventId nos retries, separado do UUID de criação do lead.
+
+A migração `0004_credit_document_alerts.sql` cria uma tabela aditiva para os avisos. Execute `npm run credit:migrate` antes de subir esta versão. A deduplicação principal continua por `(producer, eventId)` e há unicidade adicional por `(producer, collectionLinkId)`; outro link da mesma solicitação pode gerar outro aviso. O lead permanece único por `(producer, leadId)`, sem necessidade de remover constraints existentes.
+
+O aviso não aumenta o total da listagem nem cria outra linha no painel. O histórico fica em credit_events + credit_document_alerts e a entrega em sailer_deliveries. `npm run sailer:status` mostra também event_type, para diferenciar as duas automações. Retry, autenticação, bloqueios e limites são os mesmos do evento de criação.

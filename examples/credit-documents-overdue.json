@@ -1,0 +1,20 @@
+{
+  "eventId": "c8ee19e6-b015-4306-bec4-0a8cdbfd6db9",
+  "eventType": "credit.lead.documents.overdue",
+  "schemaVersion": 1,
+  "occurredAt": "2026-11-17T15:01:00Z",
+  "producer": "bankwhitelabel-server",
+  "data": {
+    "leadId": "123",
+    "collectionLinkId": "7",
+    "name": "Pessoa de exemplo",
+    "email": "pessoa@example.com",
+    "taxNumber": "00000000000",
+    "status": "AGUARDANDO_DOCUMENTACAO_KYC",
+    "requestedAt": "2026-11-16T15:00:00Z",
+    "dueAt": "2026-11-17T15:00:00Z",
+    "expiresAt": "2026-11-18T15:00:00Z",
+    "thresholdHours": 24,
+    "message": "A coleta de documentos solicitada pelo banco não foi concluída pelo lead após 24 horas. O envio permanece pendente de conclusão."
+  }
+}

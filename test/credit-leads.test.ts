@@ -7,7 +7,7 @@ import { createHash } from 'node:crypto'
 import mainApp from '../src/index'
 import { createCreditRoutes } from '../src/credit-leads'
 import { createCreditStore } from '../src/credit-store'
-import { normalizeEvent, canonicalEvent } from '../src/credit-schema'
+import { normalizeCreatedEvent as normalizeEvent, canonicalEvent } from '../src/credit-schema'
 import { parseCredentials } from '../src/credit-auth'
 const sample = JSON.parse(readFileSync('examples/credit-lead.json','utf8'))
 const hash = (key: string) => createHash('sha256').update(key).digest('hex')
@@ -20,6 +20,7 @@ async function setup(config = [entry]) {
   const db = createClient({url}), other = createClient({url})
   cleanup.push(()=>{db.close();other.close();rmSync(dir,{recursive:true,force:true})})
   await db.executeMultiple(readFileSync('migrations/0001_credit_leads.sql','utf8'))
+  await db.executeMultiple(readFileSync('migrations/0004_credit_document_alerts.sql','utf8'))
   const store = createCreditStore(db), app = createCreditRoutes(()=>store), env = {API_CREDENTIALS_JSON:JSON.stringify(config)}
   const request = (path = '/webhooks/credit-leads', body: unknown = sample, auth: Record<string,string> = headers) => app.request(`http://localhost${path}`,{method:path.startsWith('/webhooks')?'POST':'GET',headers:auth,...(path.startsWith('/webhooks')?{body:JSON.stringify(body)}:{})},env)
   const count = async(table: string)=>Number((await db.execute(`SELECT count(*) AS n FROM ${table}`)).rows[0]!.n)

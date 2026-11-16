@@ -519,3 +519,7 @@ A credencial operacional `cliente-reader` tem escopo somente `read` e acesso às
 ### Encaminhamento automático para Sailer
 
 A integração está implementada e inicialmente desabilitada para rollout. Consulte `docs/sailer-integration.md` para migração, configuração do secret, ativação, contrato de saída de quatro campos, retries e acompanhamento. A migração 0003 cria a fila transacional; não há disparo retroativo dos leads antigos. O token original não deve ser salvo no Wrangler versionado.
+
+### Evento credit.lead.documents.overdue
+
+O endpoint de ingestão aceita também o aviso de coleta de documentos não concluída após 24 horas. O contrato específico está em `examples/credit-documents-overdue.json`; o receptor usa o lead já armazenado para obter telefone/origem e encaminha à Sailer com o eventType original e os mesmos quatro campos mínimos de contato. Não cria outro lead no GET/painel. Avisos que chegam antes do lead ficam aguardando associação, sem enviar um telefone vazio. A migração aditiva 0004 é obrigatória antes de subir esta versão; não há novas variáveis de ambiente nem alterações no emissor. Detalhes em `docs/sailer-integration.md`.

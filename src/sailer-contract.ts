@@ -22,12 +22,12 @@ export function sailerPhone(value: string | null): string | null {
   if (!/^[1-9]\d\d{8,9}$/.test(national)) return null
   return digits
 }
-export function sailerPayload(event: CreditEvent) {
-  const phoneNumber = sailerPhone(event.data.phoneNumber)
+export function sailerPayload(event: CreditEvent, storedPhone?:string|null) {
+  const phoneNumber = sailerPhone(event.eventType==='credit.lead.created' ? event.data.phoneNumber : storedPhone ?? null)
   if (!phoneNumber) return null
   return {
     eventId:event.eventId,
-    eventType:'credit.lead.created',
+    eventType:event.eventType,
     occurredAt:event.occurredAt,
     data:{name:event.data.name,taxNumber:event.data.taxNumber,email:event.data.email,phoneNumber},
   }

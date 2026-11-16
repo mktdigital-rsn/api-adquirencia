@@ -143,7 +143,7 @@ Esta API não mantém marcação de leitura por cliente nem expõe identificador
 
 `POST /webhooks/credit-leads` é reservado ao produtor com credencial `ingest`. O cliente de leitura não precisa chamá-lo.
 
-O envelope contém `eventId` (UUID), `eventType=credit.lead.created`, `schemaVersion=1` (inteiro), `occurredAt` (com timezone), `producer=bankwhitelabel-server` e `data` (snapshot do lead sem `producer`, incluindo `birthDate` opcional em `YYYY-MM-DD` ou null). Campos extras são rejeitados e opcionais omitidos viram null. O limite é 64 KiB.
+O envelope de criação contém `eventId` (UUID), `eventType=credit.lead.created`, `schemaVersion=1` (inteiro), `occurredAt` (com timezone), `producer=bankwhitelabel-server` e `data` (snapshot do lead sem `producer`, incluindo `birthDate` opcional em `YYYY-MM-DD` ou null). Campos extras são rejeitados e opcionais omitidos viram null. O limite é 64 KiB.
 
 A G8 responde somente após gravar evento e lead na mesma transação:
 
@@ -176,3 +176,5 @@ Em caso de suporte, informe horário com timezone, rota, código HTTP e identifi
 Além da integração por API, a equipe pode abrir `/leads/credit` no mesmo domínio e informar o client ID e a API key de leitura. O painel mostra somente os cinco campos autorizados, com paginação e busca na página atual.
 
 A lista é atualizada a cada cinco segundos enquanto a aba está visível. A captura continua acontecendo no webhook existente: não é necessário cadastrar outro webhook. Os leads aparecem na ordem de criação do sistema de origem; uma entrega atrasada pode aparecer em outra página. A chave não é salva no navegador: sair ou recarregar exige uma nova conexão. A tela respeita as mesmas origens autorizadas da API.
+
+O mesmo endpoint de ingestão recebe `credit.lead.documents.overdue`, com contrato de data específico para coleta pendente. Esse aviso é encaminhado à Sailer com seu próprio eventId e eventType, usando o telefone do lead armazenado. Ele não cria nem atualiza um item na listagem. O contrato de entrada está em `examples/credit-documents-overdue.json` e os detalhes de encaminhamento em `docs/sailer-integration.md`.

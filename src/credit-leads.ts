@@ -55,9 +55,9 @@ export function createCreditRoutes(resolve: (env: AppEnv) => CreditStore = env =
     let raw: unknown
     try { raw = JSON.parse(new TextDecoder('utf-8',{fatal:true,ignoreBOM:false}).decode(bytes)) } catch { throw invalid() }
     const e = normalizeEvent(raw), credential = c.get('credential')
-    if (!credential.producers.includes(e.producer) || !credential.origins.includes(e.data.origem)) throw new CreditError(403,'Forbidden')
-    const duplicate = await c.get('store').ingest(e)
-    console.info(JSON.stringify({result:duplicate ? 'event_duplicate':'event_stored',eventId:e.eventId,origem:e.data.origem}))
+    if (!credential.producers.includes(e.producer) || (e.eventType==='credit.lead.created' && !credential.origins.includes(e.data.origem))) throw new CreditError(403,'Forbidden')
+    const duplicate = await c.get('store').ingest(e,credential)
+    console.info(JSON.stringify({result:duplicate ? 'event_duplicate':'event_stored',eventId:e.eventId,eventType:e.eventType,...(e.eventType==='credit.lead.created'?{origem:e.data.origem}:{})}))
     if(sailerConfig(c.env).enabled) {
       // Receipt is already committed, including the delivery job. Cron recovers interrupted attempts.
       let ctx:{waitUntil:(promise:Promise<unknown>)=>void}|undefined

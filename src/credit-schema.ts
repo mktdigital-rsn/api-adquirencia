@@ -36,7 +36,7 @@ export function birthDate(value: unknown): string | null {
   return value
 }
 
-export function normalizeEvent(input: unknown) {
+export function normalizeCreatedEvent(input: unknown) {
   const e = object(input)
   exact(e, ['eventId', 'eventType', 'schemaVersion', 'occurredAt', 'producer', 'data'])
   const eventId = string(e.eventId, 36).toLowerCase()
@@ -53,9 +53,29 @@ export function normalizeEvent(input: unknown) {
     return v as string | null
   }
   if (d.userKind != null && !['PF','PJ'].includes(d.userKind as string)) throw invalid()
-  return { eventId, eventType: 'credit.lead.created', schemaVersion: 1, occurredAt: timestamp(e.occurredAt), producer,
+  return { eventId, eventType: 'credit.lead.created' as const, schemaVersion: 1, occurredAt: timestamp(e.occurredAt), producer,
     data: { leadId: string(d.leadId,128), origem: d.origem as string, status: 'PENDENTE', amount, createdAt: timestamp(d.createdAt), userId,
       birthDate: birthDate(d.birthDate), name: optional('name',500), taxNumber: optional('taxNumber',100), email: optional('email',320), phoneNumber: optional('phoneNumber',100), userKind: (d.userKind ?? null) as string | null, agentId: optional('agentId',255) } }
+}
+export function normalizeDocumentsOverdueEvent(input: unknown) {
+  const e = object(input)
+  exact(e, ['eventId','eventType','schemaVersion','occurredAt','producer','data'])
+  const eventId = string(e.eventId,36).toLowerCase()
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(eventId) || e.eventType !== 'credit.lead.documents.overdue' || e.schemaVersion !== 1 || e.producer !== producer) throw invalid()
+  const d = object(e.data)
+  exact(d,['leadId','collectionLinkId','name','email','taxNumber','status','requestedAt','dueAt','expiresAt','thresholdHours','message'])
+  if(d.thresholdHours !== 24)throw invalid()
+  const optional = (key:string,max:number) => {
+    const value=d[key] ?? null
+    if(value!==null && (typeof value!=='string' || value.length>max))throw invalid()
+    return value as string|null
+  }
+  return {eventId,eventType:'credit.lead.documents.overdue' as const,schemaVersion:1,occurredAt:timestamp(e.occurredAt),producer,
+    data:{leadId:string(d.leadId,128),collectionLinkId:string(d.collectionLinkId,128),name:optional('name',500),email:optional('email',320),taxNumber:optional('taxNumber',100),
+      status:string(d.status,50),requestedAt:timestamp(d.requestedAt),dueAt:timestamp(d.dueAt),expiresAt:timestamp(d.expiresAt),thresholdHours:24,message:string(d.message,2000)}}
+}
+export function normalizeEvent(input: unknown) {
+  return object(input).eventType === 'credit.lead.documents.overdue' ? normalizeDocumentsOverdueEvent(input) : normalizeCreatedEvent(input)
 }
 export type CreditEvent = ReturnType<typeof normalizeEvent>
 // Objects have a fixed schema and construction order, including all optional nulls.
