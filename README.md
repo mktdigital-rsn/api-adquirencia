@@ -396,7 +396,7 @@ Antes do primeiro deploy, configure as variáveis no Cloudflare. O endpoint `API
 
 ## Receptor de solicitações de carta de crédito
 
-O Worker Hono recebe `credit.lead.created` do `bankwhitelabel-server`. Não há alteração no emissor ou nos webhooks de estabelecimentos. Não existe processamento posterior: o sucesso confirma o commit do evento e do snapshot na mesma transação.
+O Worker Hono recebe `credit.lead.created` do `bankwhitelabel-server`. Não há alteração no emissor ou nos webhooks de estabelecimentos. O sucesso confirma o commit do evento e do snapshot. Quando a integração Sailer está habilitada, a mesma transação também grava uma entrega pendente para encaminhamento posterior.
 
 Rotas sem prefixo adicional:
 
@@ -490,7 +490,7 @@ Logs estruturados contêm resultados `event_stored`, `event_duplicate`, `databas
 
 A tela pública `/docs/credit-leads` explica somente o fluxo e as rotas de leads de crédito, com autenticação, filtros e exemplos. O guia compartilhável está em `docs/credit-leads.md`. Não contém credenciais reais nem rotas de outros produtos.
 
-O webhook de entrada alimenta a API; o cliente consulta por GET. Não há entrega automática para webhook do cliente neste escopo. A chave do emissor continua exclusiva de ingestão.
+O webhook de entrada alimenta a API. GET e painel continuam disponíveis; o encaminhamento automático para a Sailer é configurado separadamente conforme `docs/sailer-integration.md`. A chave do emissor continua exclusiva de ingestão.
 
 Para habilitar um cliente leitor:
 
@@ -500,7 +500,7 @@ Para habilitar um cliente leitor:
 4. Entregue somente client ID, segredo e origens autorizadas ao cliente por canal seguro, junto da URL `/docs/credit-leads`.
 5. Teste uma listagem e uma consulta individual com a credencial do cliente. Confirme que POST retorna 403 para essa credencial e que origens não autorizadas não aparecem.
 
-A única variável nova introduzida pelo receptor é `API_CREDENTIALS_JSON`; banco e token Turso já existiam. Variáveis `CREDIT_LEAD_WEBHOOK_*` de destino, retry, lease e timezone são exclusivas do emissor e não são necessárias neste Worker. O cadastro atual ainda não emite nem habilita uma credencial real de cliente leitor automaticamente.
+A autenticação de entrada usa `API_CREDENTIALS_JSON`; a integração Sailer usa `SAILER_WEBHOOK_ENABLED`, `SAILER_WEBHOOK_URL` e o secret `SAILER_WEBHOOK_TOKEN`; banco e token Turso já existiam. Variáveis `CREDIT_LEAD_WEBHOOK_*` de destino, retry, lease e timezone são exclusivas do emissor e não são necessárias neste Worker. O cadastro atual ainda não emite nem habilita uma credencial real de cliente leitor automaticamente.
 
 ### Painel visual de leads
 
@@ -515,3 +515,7 @@ A busca considera somente os contatos da página carregada; a paginação consul
 Não é necessário cadastrar outro webhook, configurar nova variável ou executar migração para usar o painel. O fluxo é: emissor envia → receptor persiste → próxima consulta da tela exibe os dados autorizados. Não há conexão direta do navegador com o emissor nem alterações na entrega dos eventos.
 
 A credencial operacional `cliente-reader` tem escopo somente `read` e acesso às três origens: `PUBLICA`, `IB` e `AGENTE`. O mesmo cadastro deve estar sincronizado em `vars.API_CREDENTIALS_JSON` do Wrangler e no ambiente local. Isso não altera as permissões de ingestão nem os cinco campos retornados nas consultas.
+
+### Encaminhamento automático para Sailer
+
+A integração está implementada e inicialmente desabilitada para rollout. Consulte `docs/sailer-integration.md` para migração, configuração do secret, ativação, contrato de saída de quatro campos, retries e acompanhamento. A migração 0003 cria a fila transacional; não há disparo retroativo dos leads antigos. O token original não deve ser salvo no Wrangler versionado.

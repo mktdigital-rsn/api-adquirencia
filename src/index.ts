@@ -1,3 +1,4 @@
+import { dispatchSailer, reportSailerFailure } from './sailer-delivery'
 import { renderCreditDashboard } from './credit-dashboard'
 import { creditDashboardScript } from './credit-dashboard-client'
 import { renderCreditDocs } from './credit-docs'
@@ -367,6 +368,7 @@ app.post('/api/webhooks/events/establishment-approved', async (c) => {
 app.route('/', createCreditRoutes())
 
 export const scheduled = async (_event: ScheduledEvent, env: AppEnv, ctx: ExecutionContext) => {
+  ctx.waitUntil(dispatchSailer(env).catch(reportSailerFailure))
   if (env.WEBHOOK_POLL_ENABLED === 'false') {
     return
   }
@@ -375,4 +377,4 @@ export const scheduled = async (_event: ScheduledEvent, env: AppEnv, ctx: Execut
   ctx.waitUntil(manager.syncApprovedEstablishments({ source: 'cron' }))
 }
 
-export default app
+export default Object.assign(app, { scheduled })

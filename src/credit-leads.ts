@@ -1,3 +1,5 @@
+import { sailerConfig } from './sailer-contract'
+import { dispatchSailer, reportSailerFailure } from './sailer-delivery'
 import { Hono, type MiddlewareHandler } from 'hono'
 import type { AppEnv } from './env'
 import { authenticate, parseCredentials, type Credential } from './credit-auth'
@@ -8,14 +10,15 @@ type CreditEnv = {Bindings:AppEnv;Variables:{credential:Credential;store:CreditS
 
 export function createCreditRoutes(resolve: (env: AppEnv) => CreditStore = env => {
   if (!env.TURSO_DATABASE_URL) throw new Error('Missing TURSO_DATABASE_URL')
-  return connectCreditStore(env.TURSO_DATABASE_URL,env.TURSO_AUTH_TOKEN)
-}) {
+  return connectCreditStore(env.TURSO_DATABASE_URL,env.TURSO_AUTH_TOKEN,{sailerEnabled:sailerConfig(env).enabled})
+}, deliver: (env:AppEnv,limit?:number)=>Promise<unknown> = dispatchSailer) {
   const routes = new Hono<CreditEnv>()
   const guard: MiddlewareHandler<CreditEnv> = async(c,next)=>{
     c.header('Cache-Control','no-store'); c.header('X-Content-Type-Options','nosniff')
     const started = Date.now()
     try {
       if (c.req.path === '/health/live') { await next(); return }
+      sailerConfig(c.env)
       const credentials = parseCredentials(c.env.API_CREDENTIALS_JSON)
       c.set('store',resolve(c.env))
       if (c.req.path !== '/health/ready') c.set('credential',await authenticate(c.req.raw.headers,credentials,c.req.method === 'POST' ? 'ingest' : 'read'))
@@ -55,6 +58,14 @@ export function createCreditRoutes(resolve: (env: AppEnv) => CreditStore = env =
     if (!credential.producers.includes(e.producer) || !credential.origins.includes(e.data.origem)) throw new CreditError(403,'Forbidden')
     const duplicate = await c.get('store').ingest(e)
     console.info(JSON.stringify({result:duplicate ? 'event_duplicate':'event_stored',eventId:e.eventId,origem:e.data.origem}))
+    if(sailerConfig(c.env).enabled) {
+      // Receipt is already committed, including the delivery job. Cron recovers interrupted attempts.
+      let ctx:{waitUntil:(promise:Promise<unknown>)=>void}|undefined
+      try {ctx=c.executionCtx} catch { /* Standalone Hono clients have no Worker context. */ }
+      const delivery=deliver(c.env,1).catch(reportSailerFailure)
+      if(ctx)ctx.waitUntil(delivery)
+      else await delivery
+    }
     return c.json({eventId:e.eventId,duplicate},duplicate ? 200:201)
   })
   const filters = (url: string, single = false) => {

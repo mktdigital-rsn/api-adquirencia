@@ -1,4 +1,7 @@
 export interface AppEnv {
+  SAILER_WEBHOOK_ENABLED?: string
+  SAILER_WEBHOOK_URL?: string
+  SAILER_WEBHOOK_TOKEN?: string
   API_CREDENTIALS_JSON?: string
   PORT?: string
   AGENTS_API_BASE_URL?: string

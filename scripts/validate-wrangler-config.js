@@ -9,6 +9,7 @@ function visit(node) {
     const names = new Set()
     for (const property of node.properties) {
       const name = property.name?.text
+      if (name === 'SAILER_WEBHOOK_TOKEN') throw new Error('SAILER_WEBHOOK_TOKEN must be a Cloudflare secret, not a versioned Wrangler binding')
       if (name !== undefined && names.has(name)) throw new Error(`Duplicate Wrangler configuration key: ${name}`)
       names.add(name)
     }

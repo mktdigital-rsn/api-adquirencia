@@ -23,7 +23,7 @@ sequenceDiagram
 
 O envio do sistema de origem é assíncrono. Uma solicitação pode ter sido criada e ainda estar aguardando entrega. Assim que o receptor confirma a gravação, o lead fica disponível para consulta.
 
-Nesta integração, a G8 recebe o webhook e o cliente consulta a API. Não existe envio automático de notificações desta API para o webhook do cliente. A credencial de leitura não permite inserir eventos. O registro consultado é um snapshot da criação: este contrato não atualiza andamento/aprovação da solicitação.
+A G8 recebe o webhook e mantém consultas por API. A integração Sailer, quando habilitada, também recebe automaticamente um POST com eventId, eventType, occurredAt e data contendo somente name, taxNumber, email e phoneNumber; sem birthDate. A configuração operacional está em `docs/sailer-integration.md`. A credencial de leitura não permite inserir eventos. O registro consultado é um snapshot da criação: este contrato não atualiza andamento/aprovação da solicitação.
 
 ## Conexão e credenciais de leitura
 
@@ -151,7 +151,7 @@ A G8 responde somente após gravar evento e lead na mesma transação:
 - 200: `{"eventId":"<UUID>","duplicate":true}` para o mesmo evento normalizado.
 - 409: mesmo evento com conteúdo diferente, ou outro evento para o mesmo lead.
 
-Reenvios não criam leads duplicados. Não existe notificação adicional para o cliente leitor.
+Reenvios não criam leads duplicados. A consulta do cliente leitor é independente do encaminhamento automático Sailer configurado pelo operador.
 
 ## Erros e disponibilidade
 

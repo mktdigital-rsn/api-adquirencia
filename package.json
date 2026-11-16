@@ -13,7 +13,9 @@
     "credit:migrate": "node scripts/migrate-credit.js",
     "credit:issue-key": "node scripts/issue-credit-key.js",
     "credit:validate-config": "node scripts/validate-credit-config.js",
-    "credit:validate-wrangler": "node scripts/validate-wrangler-config.js"
+    "credit:validate-wrangler": "node scripts/validate-wrangler-config.js",
+    "sailer:status": "node scripts/sailer-status.js",
+    "sailer:retry": "node scripts/sailer-retry.js"
   },
   "engines": {
     "node": ">=20"

@@ -1,14 +1,22 @@
+import { sailerPayload } from './sailer-contract'
 import { createClient, type Client, type InValue } from '@libsql/client/web'
 import { canonicalEvent, CreditError, type CreditEvent } from './credit-schema'
 import type { Credential } from './credit-auth'
-export function createCreditStore(db: Client) {
+export function createCreditStore(db: Client, options: {sailerEnabled?:boolean} = {}) {
   const find = async (e: CreditEvent) => (await db.execute({sql:'SELECT payload FROM credit_events WHERE producer=? AND event_id=?',args:[e.producer,e.eventId]})).rows[0]
   const duplicate = (payload: unknown, e: CreditEvent) => {
     if (canonicalEvent(JSON.parse(String(payload))) !== canonicalEvent(e)) throw new CreditError(409,'Event identity conflict')
     return true
   }
   return {
-    async ready() { await db.execute('SELECT id FROM credit_events LIMIT 1') },
+    async ready() {
+      await db.execute('SELECT id FROM credit_events LIMIT 1')
+      if(options.sailerEnabled) {
+        await db.execute('SELECT id FROM sailer_deliveries LIMIT 1')
+        const gate=await db.execute('SELECT id FROM sailer_delivery_rate WHERE id=1')
+        if(!gate.rows.length)throw new Error('Missing Sailer rate gate')
+      }
+    },
     async ingest(e: CreditEvent) {
       const previous = await find(e)
       if (previous) return duplicate(previous.payload,e)
@@ -16,6 +24,10 @@ export function createCreditStore(db: Client) {
       try {
         const inserted = await tx.execute({sql:'INSERT INTO credit_events(producer,event_id,payload,received_at) VALUES(?,?,?,?) RETURNING id',args:[e.producer,e.eventId,canonicalEvent(e),new Date().toISOString()]})
         await tx.execute({sql:'INSERT INTO credit_leads(event_pk,producer,lead_id,origem,status,created_at,data) VALUES(?,?,?,?,?,?,?)',args:[inserted.rows[0]!.id,e.producer,e.data.leadId,e.data.origem,e.data.status,e.data.createdAt,JSON.stringify(e.data)]})
+        if(options.sailerEnabled) {
+          const payload=sailerPayload(e)
+          await tx.execute({sql:'INSERT INTO sailer_deliveries(event_pk,payload,status,next_attempt_ms,last_error_code) VALUES(?,?,?,?,?)',args:[inserted.rows[0]!.id,payload?JSON.stringify(payload):null,payload?'pending':'blocked',Date.now(),payload?null:'invalid_phone']})
+        }
         await tx.commit()
         return false
       } catch (error) {
@@ -64,5 +76,5 @@ export function createCreditStore(db: Client) {
     }
   }
 }
-export const connectCreditStore = (url: string, authToken?: string) => createCreditStore(createClient({url,authToken}))
+export const connectCreditStore = (url: string, authToken?: string, options: {sailerEnabled?:boolean} = {}) => createCreditStore(createClient({url,authToken}), options)
 export type CreditStore = ReturnType<typeof createCreditStore>
