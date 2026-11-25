@@ -1,0 +1,22 @@
+{
+  "eventId": "4f471303-880c-42c1-9476-c556c9e5901d",
+  "eventType": "credit.lead.signature.overdue",
+  "schemaVersion": 1,
+  "occurredAt": "2026-11-25T12:00:00Z",
+  "producer": "bankwhitelabel-server",
+  "data": {
+    "leadId": "123",
+    "origem": "PUBLICA",
+    "name": "Pessoa de exemplo",
+    "email": "teste@example.com",
+    "taxNumber": "00000000000",
+    "phoneNumber": "71999999999",
+    "ccbId": "ccb-7",
+    "status": "CCB_ENVIADA",
+    "requestedAt": "2026-11-24T12:00:00Z",
+    "dueAt": "2026-11-25T12:00:00Z",
+    "thresholdHours": 24,
+    "reminderNumber": 1,
+    "message": "CCB enviada e ainda não assinada."
+  }
+}

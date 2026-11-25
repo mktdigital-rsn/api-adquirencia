@@ -32,7 +32,7 @@ describe('credit.lead.documents.overdue',()=>{
   const s=await setup();expect((await s.request(creation)).status).toBe(201)
   const before=String((await s.db.execute('SELECT data FROM credit_leads')).rows[0]!.data)
   expect((await s.request(overdue)).status).toBe(201)
-  expect(await s.count('credit_events')).toBe(2);expect(await s.count('credit_leads')).toBe(1);expect(await s.count('credit_document_alerts')).toBe(1)
+  expect(await s.count('credit_events')).toBe(2);expect(await s.count('credit_leads')).toBe(1);expect(await s.count('credit_lifecycle_events')).toBe(1)
   expect(String((await s.db.execute('SELECT data FROM credit_leads')).rows[0]!.data)).toBe(before)
   const row=(await s.db.execute({sql:'SELECT d.payload FROM sailer_deliveries d JOIN credit_events e ON e.id=d.event_pk WHERE e.event_id=?',args:[overdue.eventId]})).rows[0]!
   const payload=JSON.parse(String(row.payload))
@@ -56,7 +56,7 @@ describe('credit.lead.documents.overdue',()=>{
  it('allows separate collection links for the same lead',async()=>{
   const s=await setup();await s.request(creation);await s.request(overdue)
   expect((await s.request({...overdue,eventId:crypto.randomUUID(),data:{...overdue.data,collectionLinkId:'8'}})).status).toBe(201)
-  expect(await s.count('credit_leads')).toBe(1);expect(await s.count('credit_document_alerts')).toBe(2)
+  expect(await s.count('credit_leads')).toBe(1);expect(await s.count('credit_lifecycle_events')).toBe(2)
  })
  it('holds out-of-order alerts and resolves their phone atomically when creation arrives',async()=>{
   const s=await setup();expect((await s.request(overdue)).status).toBe(201)
@@ -76,7 +76,7 @@ describe('credit.lead.documents.overdue',()=>{
   const s=await setup(['PUBLICA'])
   await s.store.ingest(normalizeCreatedEvent({...creation,data:{...creation.data,origem:'IB'}}))
   expect((await s.request(overdue)).status).toBe(403)
-  expect(await s.count('credit_document_alerts')).toBe(0)
+  expect(await s.count('credit_lifecycle_events')).toBe(0)
  })
  it('does not accept an unknown-origin alert through a restricted credential',async()=>{
   const s=await setup(['PUBLICA']);expect((await s.request(overdue)).status).toBe(403)
@@ -86,14 +86,14 @@ describe('credit.lead.documents.overdue',()=>{
   const s=await setup();await s.request(creation)
   await s.db.execute("CREATE TRIGGER fail_alert_job BEFORE INSERT ON sailer_deliveries BEGIN SELECT RAISE(ABORT,'failure'); END")
   expect((await s.request(overdue)).status).toBe(503)
-  expect(await s.count('credit_document_alerts')).toBe(0);expect(await s.count('credit_events')).toBe(1)
+  expect(await s.count('credit_lifecycle_events')).toBe(0);expect(await s.count('credit_events')).toBe(1)
  })
  it('deduplicates concurrent retries across independent connections',async()=>{
   const s=await setup();await s.store.ingest(normalizeCreatedEvent(creation))
   const event=normalizeDocumentsOverdueEvent(overdue)
   const other=createCreditStore(s.other,{sailerEnabled:true})
   const results=await Promise.all([s.store.ingest(event),other.ingest(event)])
-  expect(results.sort()).toEqual([false,true]);expect(await s.count('credit_document_alerts')).toBe(1)
+  expect(results.sort()).toEqual([false,true]);expect(await s.count('credit_lifecycle_events')).toBe(1)
  })
  it.each([{thresholdHours:true},{thresholdHours:25},{thresholdHours:'24'},{phoneNumber:'71999999999'},{origem:'PUBLICA'},{requestedAt:'2026-11-16T15:00:00'},{collectionLinkId:7},{unknown:1}])('rejects invalid overdue contract %j',change=>{
   expect(()=>normalizeEvent({...overdue,data:{...overdue.data,...change}})).toThrow()

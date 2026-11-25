@@ -1,5 +1,6 @@
 import { createClient, type Client } from '@libsql/client/web'
 import type { AppEnv } from './env'
+import {suppressResolvedDeliveries,suppressExpiredDeliveries} from './credit-lifecycle'
 import { sailerConfig } from './sailer-contract'
 
 const MAX_ATTEMPTS = 10
@@ -19,6 +20,8 @@ export function createSailerDelivery(db: Client, options: {
     }
     try {
       const instant=now()
+      await tx.execute(suppressResolvedDeliveries)
+      await tx.execute({sql:suppressExpiredDeliveries,args:[new Date(instant).toISOString()]})
       await tx.execute({sql:`UPDATE sailer_deliveries SET status='failed',claim_token=NULL,lease_until_ms=NULL,last_error_code='retry_limit'
         WHERE (status='pending' OR (status='processing' AND lease_until_ms<=?))
         AND (attempts>=? OR (first_attempt_ms IS NOT NULL AND first_attempt_ms<=?))`,args:[instant,MAX_ATTEMPTS,instant-RETRY_WINDOW_MS]})
@@ -43,6 +46,9 @@ export function createSailerDelivery(db: Client, options: {
     } finally {tx.close()}
   }
   async function deliver(job: Claim) {
+    // A resolution may have arrived after claim. Recheck immediately before HTTP.
+    const active=await db.execute({sql:`SELECT id FROM sailer_deliveries WHERE id=? AND status='processing' AND claim_token=?`,args:[job.id,job.token]})
+    if(!active.rows.length)return false
     let status:number|null=null,delivered=false,retryable=true,code='network_error',retryAfter=0
     const controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),10000)
     try {

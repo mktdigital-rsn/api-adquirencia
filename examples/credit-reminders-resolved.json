@@ -1,0 +1,19 @@
+{
+  "eventId": "058d2dd5-7afb-4076-aaf2-f88fff44b1ec",
+  "eventType": "credit.lead.reminders.resolved",
+  "schemaVersion": 1,
+  "occurredAt": "2026-11-25T12:00:00Z",
+  "producer": "bankwhitelabel-server",
+  "data": {
+    "leadId": "123",
+    "origem": "PUBLICA",
+    "name": "Pessoa de exemplo",
+    "email": "teste@example.com",
+    "taxNumber": "00000000000",
+    "phoneNumber": "71999999999",
+    "kind": "documents",
+    "referenceId": "7",
+    "resolvedAt": "2026-11-25T13:00:00Z",
+    "reason": "received"
+  }
+}

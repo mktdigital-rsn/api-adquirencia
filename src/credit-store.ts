@@ -1,4 +1,5 @@
 import { sailerPayload } from './sailer-contract'
+import {lifecycle,suppressResolvedDeliveries,suppressExpiredDeliveries} from './credit-lifecycle'
 import { createClient, type Client, type InValue } from '@libsql/client/web'
 import { canonicalEvent, normalizeEvent, origins, CreditError, type CreditEvent } from './credit-schema'
 import type { Credential } from './credit-auth'
@@ -22,7 +23,7 @@ export function createCreditStore(db: Client, options: {sailerEnabled?:boolean} 
   return {
     async ready() {
       await db.execute('SELECT id FROM credit_events LIMIT 1')
-      await db.execute('SELECT id FROM credit_document_alerts LIMIT 1')
+      await db.execute('SELECT id FROM credit_lifecycle_events LIMIT 1')
       if(options.sailerEnabled) {
         await db.execute('SELECT id FROM sailer_deliveries LIMIT 1')
         const gate=await db.execute('SELECT id FROM sailer_delivery_rate WHERE id=1')
@@ -30,29 +31,30 @@ export function createCreditStore(db: Client, options: {sailerEnabled?:boolean} 
       }
     },
     async ingest(e: CreditEvent, credential?:Credential) {
-      const overdue=e.eventType==='credit.lead.documents.overdue'
-      if(overdue && credential) {
+      const cycle=lifecycle(e)
+      if(e.eventType!=='credit.lead.created' && credential) {
         const lead=(await db.execute({sql:'SELECT origem FROM credit_leads WHERE producer=? AND lead_id=?',args:[e.producer,e.data.leadId]})).rows[0]
-        if(!credential.producers.includes(e.producer) || (lead ? !credential.origins.includes(String(lead.origem)) : !origins.every(origin=>credential.origins.includes(origin))))throw new CreditError(403,'Forbidden')
+        const origin=e.data.origem ?? (lead?String(lead.origem):null)
+        if(!credential.producers.includes(e.producer) || (origin ? !credential.origins.includes(origin) : !origins.every(value=>credential.origins.includes(value))) || (lead && e.data.origem && e.data.origem!==lead.origem))throw new CreditError(403,'Forbidden')
       }
       const previous = await find(e)
       if (previous) return duplicate(previous.payload,e)
       const tx = await beginWrite()
       try {
-        const storedLead=overdue?(await tx.execute({sql:'SELECT data FROM credit_leads WHERE producer=? AND lead_id=?',args:[e.producer,e.data.leadId]})).rows[0]:undefined
+        const storedLead=e.eventType!=='credit.lead.created'?(await tx.execute({sql:'SELECT data FROM credit_leads WHERE producer=? AND lead_id=?',args:[e.producer,e.data.leadId]})).rows[0]:undefined
         const inserted = await tx.execute({sql:'INSERT INTO credit_events(producer,event_id,payload,received_at) VALUES(?,?,?,?) RETURNING id',args:[e.producer,e.eventId,canonicalEvent(e),new Date().toISOString()]})
         if(e.eventType==='credit.lead.created') {
           await tx.execute({sql:'INSERT INTO credit_leads(event_pk,producer,lead_id,origem,status,created_at,data) VALUES(?,?,?,?,?,?,?)',args:[inserted.rows[0]!.id,e.producer,e.data.leadId,e.data.origem,e.data.status,e.data.createdAt,JSON.stringify(e.data)]})
         } else {
-          await tx.execute({sql:'INSERT INTO credit_document_alerts(event_pk,producer,lead_id,collection_link_id) VALUES(?,?,?,?)',args:[inserted.rows[0]!.id,e.producer,e.data.leadId,e.data.collectionLinkId]})
+          await tx.execute({sql:'INSERT INTO credit_lifecycle_events(event_pk,producer,lead_id,event_type,kind,reference_id,reminder_number) VALUES(?,?,?,?,?,?,?)',args:[inserted.rows[0]!.id,e.producer,e.data.leadId,e.eventType,cycle!.kind,cycle!.referenceId,cycle!.reminderNumber]})
         }
-        if(options.sailerEnabled) {
+        if(options.sailerEnabled && e.eventType!=='credit.lead.reminders.resolved') {
           const payload=sailerPayload(e,storedLead?JSON.parse(String(storedLead.data)).phoneNumber:null)
-          await tx.execute({sql:'INSERT INTO sailer_deliveries(event_pk,payload,status,next_attempt_ms,last_error_code) VALUES(?,?,?,?,?)',args:[inserted.rows[0]!.id,payload?JSON.stringify(payload):null,payload?'pending':'blocked',Date.now(),payload?null:(overdue&&!storedLead?'missing_lead':'invalid_phone')]})
+          await tx.execute({sql:'INSERT INTO sailer_deliveries(event_pk,payload,status,next_attempt_ms,last_error_code) VALUES(?,?,?,?,?)',args:[inserted.rows[0]!.id,payload?JSON.stringify(payload):null,payload?'pending':'blocked',Date.now(),payload?null:(e.eventType!=='credit.lead.created'&&!e.data.phoneNumber&&!storedLead?'missing_lead':'invalid_phone')]})
         }
         if(options.sailerEnabled && e.eventType==='credit.lead.created') {
-          // An alert can arrive before the creation event. Resume only its existing blocked job.
-          const waiting=await tx.execute({sql:`SELECT d.id,ev.payload FROM sailer_deliveries d JOIN credit_document_alerts a ON a.event_pk=d.event_pk
+          // Backward-compatible recovery for old document alerts that had no phone.
+          const waiting=await tx.execute({sql:`SELECT d.id,ev.payload FROM sailer_deliveries d JOIN credit_lifecycle_events a ON a.event_pk=d.event_pk
             JOIN credit_events ev ON ev.id=a.event_pk WHERE a.producer=? AND a.lead_id=? AND d.status='blocked' AND d.last_error_code='missing_lead'`,args:[e.producer,e.data.leadId]})
           for(const row of waiting.rows) {
             const alert=normalizeEvent(JSON.parse(String(row.payload)))
@@ -60,16 +62,21 @@ export function createCreditStore(db: Client, options: {sailerEnabled?:boolean} 
             await tx.execute({sql:'UPDATE sailer_deliveries SET payload=?,status=?,last_error_code=?,next_attempt_ms=? WHERE id=?',args:[payload?JSON.stringify(payload):null,payload?'pending':'blocked',payload?null:'invalid_phone',Date.now(),row.id]})
           }
         }
+        // Also cancel old deliveries when forwarding is paused. Never forward control events.
+        if(e.eventType==='credit.lead.reminders.resolved' || options.sailerEnabled) {
+          await tx.execute(suppressResolvedDeliveries)
+          await tx.execute({sql:suppressExpiredDeliveries,args:[new Date().toISOString()]})
+        }
         await tx.commit()
         return false
       } catch (error) {
         await tx.rollback()
         const err = error as {code?: string; message?: string}
-        const expected = err.code?.startsWith('SQLITE_CONSTRAINT') && /UNIQUE constraint failed: credit_(events\.producer, credit_events\.event_id|leads\.producer, credit_leads\.lead_id|document_alerts\.producer, credit_document_alerts\.collection_link_id)/.test(err.message ?? '')
+        const expected = err.code?.startsWith('SQLITE_CONSTRAINT') && /UNIQUE constraint failed: credit_(events\.producer, credit_events\.event_id|leads\.producer, credit_leads\.lead_id|lifecycle_events\.producer, credit_lifecycle_events\.lead_id, credit_lifecycle_events\.event_type, credit_lifecycle_events\.reference_id, credit_lifecycle_events\.reminder_number)/.test(err.message ?? '')
         if (!expected) throw error
         const winner = await find(e)
         if (winner) return duplicate(winner.payload,e)
-        throw new CreditError(409,overdue?'Document collection alert already created':'Lead already created')
+        throw new CreditError(409,cycle?'Lifecycle event already created':'Lead already created')
       } finally { tx.close() }
     },
     async query(credential: Credential, filters: Record<string,string>, leadId?: string) {

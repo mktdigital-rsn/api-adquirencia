@@ -23,7 +23,8 @@ export function sailerPhone(value: string | null): string | null {
   return digits
 }
 export function sailerPayload(event: CreditEvent, storedPhone?:string|null) {
-  const phoneNumber = sailerPhone(event.eventType==='credit.lead.created' ? event.data.phoneNumber : storedPhone ?? null)
+  if(event.eventType==='credit.lead.reminders.resolved')return null
+  const phoneNumber = sailerPhone(event.data.phoneNumber ?? storedPhone ?? null)
   if (!phoneNumber) return null
   return {
     eventId:event.eventId,

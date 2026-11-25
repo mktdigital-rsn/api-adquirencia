@@ -1,0 +1,16 @@
+{
+  "eventId": "82499e11-60d8-40ea-b8eb-70699a41736a",
+  "eventType": "credit.lead.approved",
+  "schemaVersion": 1,
+  "occurredAt": "2026-11-25T12:00:00Z",
+  "producer": "bankwhitelabel-server",
+  "data": {
+    "leadId": "123",
+    "origem": "PUBLICA",
+    "name": "Pessoa de exemplo",
+    "email": "teste@example.com",
+    "taxNumber": "00000000000",
+    "phoneNumber": "71999999999",
+    "status": "AGUARDANDO_DOCUMENTACAO_KYC"
+  }
+}

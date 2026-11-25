@@ -21,6 +21,7 @@ async function setup(config = [entry]) {
   cleanup.push(()=>{db.close();other.close();rmSync(dir,{recursive:true,force:true})})
   await db.executeMultiple(readFileSync('migrations/0001_credit_leads.sql','utf8'))
   await db.executeMultiple(readFileSync('migrations/0004_credit_document_alerts.sql','utf8'))
+  await db.executeMultiple(readFileSync('migrations/0005_credit_lifecycle.sql','utf8'))
   const store = createCreditStore(db), app = createCreditRoutes(()=>store), env = {API_CREDENTIALS_JSON:JSON.stringify(config)}
   const request = (path = '/webhooks/credit-leads', body: unknown = sample, auth: Record<string,string> = headers) => app.request(`http://localhost${path}`,{method:path.startsWith('/webhooks')?'POST':'GET',headers:auth,...(path.startsWith('/webhooks')?{body:JSON.stringify(body)}:{})},env)
   const count = async(table: string)=>Number((await db.execute(`SELECT count(*) AS n FROM ${table}`)).rows[0]!.n)

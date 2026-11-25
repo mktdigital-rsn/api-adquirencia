@@ -9,6 +9,6 @@ try {
   // Same payload and ID, within the original six-day window; never replay delivered jobs.
   const result=await db.execute({sql:`UPDATE sailer_deliveries SET status='pending',attempts=0,next_attempt_ms=?,last_error_code=NULL
     WHERE event_pk IN (SELECT id FROM credit_events WHERE event_id=?) AND status IN ('blocked','failed')
-    AND payload IS NOT NULL AND (first_attempt_ms IS NULL OR first_attempt_ms>?)`,args:[now,eventId.toLowerCase(),now-6*86400000]})
+    AND coalesce(last_error_code,'') NOT IN ('reminder_resolved','reminder_expired') AND payload IS NOT NULL AND (first_attempt_ms IS NULL OR first_attempt_ms>?)`,args:[now,eventId.toLowerCase(),now-6*86400000]})
   console.log(JSON.stringify({requeued:result.rowsAffected}))
 }finally{db.close()}

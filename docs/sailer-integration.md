@@ -104,34 +104,43 @@ Esse comando faz somente a alteração no banco. O cron entrega depois. Preserva
 
 Sem backfill automático de leads já existentes, sem envio de teste real automático, sem alterações no emissor e sem mudança nos cinco campos disponíveis no GET/painel. A entrega externa tem quatro campos e não inclui nascimento. Apenas um destino Sailer é configurado; mudar a URL passa a valer para todas as entregas pendentes, portanto não use essa variável para alternar clientes diferentes sem reconciliar a fila.
 
-## Aviso de coleta de documentos não concluída
+## Aprovação e cadências de documentos/assinatura
 
-O receptor também aceita `credit.lead.documents.overdue` no mesmo `POST /webhooks/credit-leads`, com schemaVersion 1 e as mesmas credenciais. O emissor já determina a elegibilidade após 24 horas; o receptor não agenda nem recalcula essa regra. A regra atual do emissor inclui coleta parcial ainda não concluída, não apenas ausência completa de arquivos.
+Mesma URL, token, fila e contrato mínimo Sailer para os quatro tipos externos:
 
-Contrato de entrada completo: `examples/credit-documents-overdue.json`. Além do envelope, data contém leadId e collectionLinkId como strings, name/email/taxNumber opcionais, status como string, requestedAt/dueAt/expiresAt com timezone, thresholdHours inteiro exatamente 24 e message. Campos adicionais são rejeitados. Não há token ou URL de acesso à coleta nesse contrato.
+| Tipo | Marco / significado no emissor |
+| --- | --- |
+| `credit.lead.created` | Nova solicitação, comportamento preservado |
+| `credit.lead.approved` | Aprovação efetiva habilitando o fluxo; Sailer move para Aguardando documentos e envia nova_abertura |
+| `credit.lead.documents.overdue` | Um POST por lembrete: primeiro quando o admin envia link por e-mail, segundo 48h após o primeiro aviso se ainda pendente |
+| `credit.lead.signature.overdue` | Primeiro lembrete após 24h de CCB enviada sem assinatura; segundo com prazo configurado no emissor |
 
-O emissor não envia telefone nem origem nesse evento. O receptor resolve a origem e o telefone pelo snapshot do lead já armazenado, usando `(producer, leadId)`. As permissões de ingestão para a origem são respeitadas. Se o lead ainda não existe, somente uma credencial autorizada a todas as origens pode armazenar o aviso; a entrega fica bloqueada com `missing_lead`. Quando o evento de criação chega, a mesma transação preenche a entrega pendente com o telefone e a libera. Não é criado um lead a partir do aviso, nem é alterado o snapshot da criação.
+O intervalo do segundo aviso de assinatura não foi confirmado pelo negócio. O prompt propõe mais 24h, configuráveis no emissor. O receptor não cria nem agenda lembretes e não prova esses marcos de negócio: recebe os eventos já decididos pelo emissor. A expressão “48h” foi interpretada conforme o esclarecimento de contar a partir do primeiro evento overdue, não da criação do lead.
 
-Sem telefone válido no snapshot, o envio fica bloqueado com `invalid_phone`, como nos eventos de criação. Não são inventados números nem consultadas APIs externas para enriquecer o aviso.
+O JSON externo mantém exatamente `eventId`, `eventType`, `occurredAt` e `data` com `name`, `taxNumber`, `email`, `phoneNumber`. Nenhum novo campo interno, documento, token de link, nascimento ou URL é enviado. O telefone segue a normalização existente, sem mudança de formato. `data.phoneNumber` nunca fica vazio nos POSTs externos: números inválidos geram `blocked/invalid_phone` e não são enviados.
 
-Para a Sailer, o POST continua contendo somente o envelope e os quatro campos autorizados:
+### Entrada no receptor
 
-```json
-{
-  "eventId": "c8ee19e6-b015-4306-bec4-0a8cdbfd6db9",
-  "eventType": "credit.lead.documents.overdue",
-  "occurredAt": "2026-11-17T15:01:00.000000000Z",
-  "data": {
-    "name": "Pessoa de exemplo",
-    "taxNumber": "00000000000",
-    "email": "pessoa@example.com",
-    "phoneNumber": "71999999999"
-  }
-}
-```
+Exemplos completos em `examples/credit-lead-approved.json`, `credit-documents-reminder-1.json`, `credit-documents-reminder-2.json`, `credit-signature-overdue.json` e `credit-reminders-resolved.json`. O prompt do emissor com o contrato completo está em `docs/prompt-emissor-cadencias.md`.
 
-O eventType informa o motivo para a automação do cliente; mensagem, IDs internos, datas do link, status, thresholdHours e nascimento não são encaminhados. A Sailer precisa mapear esse novo eventType para a automação desejada. O evento mantém o próprio eventId nos retries, separado do UUID de criação do lead.
+Novos eventos têm `leadId`, `origem`, `name/email/taxNumber` opcionais e `phoneNumber` não vazio. Aprovação tem `status` real do emissor (não existe CCB_APROVADA no enum lido; o método correto deve ser identificado na implementação Java). Status de ciclo é string explícita, não forçado para PENDENTE. Novos eventos com telefone próprio podem chegar antes da criação sem criar um lead fictício; origem explícita é validada contra a credencial e contra um lead já existente.
 
-A migração `0004_credit_document_alerts.sql` cria uma tabela aditiva para os avisos. Execute `npm run credit:migrate` antes de subir esta versão. A deduplicação principal continua por `(producer, eventId)` e há unicidade adicional por `(producer, collectionLinkId)`; outro link da mesma solicitação pode gerar outro aviso. O lead permanece único por `(producer, leadId)`, sem necessidade de remover constraints existentes.
+Documentos: `collectionLinkId`, status, `requestedAt`, `dueAt`, `expiresAt`, `thresholdHours`, `reminderNumber`, message. Primeiro ordinal 1 com threshold 0; segundo ordinal 2 com threshold 48; dueAt deve corresponder a requestedAt + thresholdHours e preceder expiresAt. O marco requestedAt é o primeiro aviso do ciclo. Assinatura: `ccbId`, status, `requestedAt`, `dueAt`, `thresholdHours`, `reminderNumber`, message; primeiro threshold 24, segundo maior que 24 e coerente com dueAt. O scheduler Java decide a hora de emissão; a ingestão não segura eventos enviados antecipadamente.
 
-O aviso não aumenta o total da listagem nem cria outra linha no painel. O histórico fica em credit_events + credit_document_alerts e a entrega em sailer_deliveries. `npm run sailer:status` mostra também event_type, para diferenciar as duas automações. Retry, autenticação, bloqueios e limites são os mesmos do evento de criação.
+Deduplicação principal por producer + eventId. Novo lembrete tem UUID próprio; retry preserva UUID e payload. Unicidade lógica adicional por produtor/lead/eventType/ciclo/ordinal permite dois lembretes por ciclo e rejeita um terceiro. Aprovação é única por lead. Os eventos de ciclo não alteram snapshot, total do GET nem painel de leads; todos ficam auditáveis em credit_events + credit_lifecycle_events. O cadastro original de lead mantém sua constraint.
+
+### Resolver pendência e cancelar fila
+
+Evento interno adicional `credit.lead.reminders.resolved` com `kind=documents|signature`, `referenceId=collectionLinkId|ccbId`, `resolvedAt`, `reason=received|signed|cancelled|superseded|expired|rejected` e campos comuns de contato/origem. O emissor deve publicá-lo quando receber documentos pelo fluxo de e-mail confirmado ou assinatura, e ao encerrar/substituir um ciclo.
+
+Esse controle **não gera POST à Sailer**. É persistido na mesma transação que bloqueia entregas não concluídas do ciclo, inclusive `processing` com lease, e protege contra lembretes atrasados que cheguem depois da resolução. Outros ciclos e entregas já concluídas ficam preservados. Funciona com Sailer pausada e é revalidado ao reservar tentativas e imediatamente antes de HTTP. `sailer:retry` não reabre resolvidos ou expirados. Documentos modernos que expirarem também não são enviados.
+
+Limite distribuído: HTTP que já começou ou mensagem já aceita pela Sailer não pode ser desfeito pelo receptor. Se a Sailer mantém mensagens agendadas depois do POST, precisa implementar seu próprio cancelamento/revalidação. A garantia local é impedir novos claims/retries após receber o controle; não é cancelamento instantâneo em outra empresa.
+
+### Migração e compatibilidade
+
+Aplicar `npm run credit:migrate` antes de ativar. A migração 0005 é aditiva e reaplicável: cria credit_lifecycle_events e importa identidades dos avisos legados sem apagar histórico ou alterar UUIDs/payloads/fila. credit_document_alerts antiga permanece para compatibilidade e deixa de receber novos registros. A tabela nova remove a limitação anterior de um aviso por link, sem remover unicidade da criação de leads.
+
+Durante rollout, avisos legados sem origem/telefone e com thresholdHours=24 continuam aceitos para não quebrar retries históricos. Sua origem/telefone vêm do snapshot, como antes; eventos antigos sem criação ficam missing_lead até recebê-la. Essa exceção não é o contrato novo de cadência e não agenda envios retroativos. Expiração automática é aplicada aos avisos modernos; os legados preservam o comportamento anterior, mas podem ser bloqueados por um controle de resolução do mesmo ciclo.
+
+Implantar receptor + migração antes do emissor. A configuração de URL/token existente permanece. Não trocar envs nem ativar envio real só para testar. Testes usam Hono, libSQL local real e fetch Sailer simulado. Validar o emissor separadamente antes de afirmar que aprovação, e-mail ou prazos Java foram executados.
